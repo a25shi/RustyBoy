@@ -1,3 +1,5 @@
+
+#[derive(PartialEq,Clone,Debug,Eq)]
 pub struct Registers {
     pub f: u8,
     pub a: u8,

@@ -1,17 +1,43 @@
 use crate::memory::Memory;
+use crate::motherboard::Motherboard;
 use crate::registers::Registers;
+use crate::timer::Timer;
 use serde_json::Value;
-struct CPU {
-    registers: Registers,
+use std::cell::{Cell, RefCell};
+use std::convert::Infallible;
+use std::fs;
+use std::fs::File;
+use std::io::Write;
+use std::rc::Rc;
+
+pub struct CPU {
+    pub registers: Registers,
     memory: Memory,
-    opcode_table: serde_json::Value,
-    i_flag: u8,
-    i_master: bool,
-    i_enable: u8,
-    halt: bool
+    motherboard: Rc<Motherboard>,
+    opcode_table: Value,
+    i_queue: bool,
+    halt: bool,
+    blargg: String,
 }
 
 impl CPU {
+    pub fn new(rom_file: Vec<u8>) -> Self {
+        let opcodedata = fs::read_to_string("./src/opcodes/Opcodes.json").unwrap();
+        // let rom: Vec<u8> = fs::read(rom_file).unwrap();
+        let mobo = Rc::new(Motherboard::new());
+        // Initialize self
+        let this = Self {
+            registers: Registers::new(),
+            memory: Memory::new(rom_file, &mobo),
+            opcode_table: serde_json::from_str(&opcodedata).unwrap(),
+            motherboard: mobo,
+            i_queue: false,
+            halt: false,
+            blargg: String::new(),
+        };
+        this
+    }
+
     // u8 reg or hl address read
     fn read_u8_hl(&mut self, reg: &str) -> u8 {
         if reg == "hl" {
@@ -20,11 +46,11 @@ impl CPU {
             self.registers.get_u8_reg(reg).unwrap()
         }
     }
-    
     // u8 reg or hl address write
     fn write_u8_hl(&mut self, reg: &str, value: u8) {
         if reg == "hl" {
-            self.memory.set(self.registers.get_u16_reg("hl").unwrap(), value);
+            self.memory
+                .set(self.registers.get_u16_reg("hl").unwrap(), value);
         } else {
             self.registers.set_u8_reg(reg, value).unwrap();
         }
@@ -33,14 +59,14 @@ impl CPU {
     fn bit(&mut self, reg: &str, shift: u8) {
         let val = self.read_u8_hl(reg);
         let ret = val & (1 << shift);
-        
+
         self.registers.set_flag("z", ret == 0).unwrap();
         self.registers.set_flag("n", false).unwrap();
         self.registers.set_flag("h", true).unwrap();
     }
     // res
     fn res(&mut self, reg: &str, shift: u8) {
-        let val= self.read_u8_hl(reg);
+        let val = self.read_u8_hl(reg);
         let ret = val & !(1 << shift);
         self.write_u8_hl(reg, ret);
     }
@@ -52,11 +78,11 @@ impl CPU {
     }
     // srl
     fn srl(&mut self, reg: &str) {
-        let mut val= self.read_u8_hl(reg);
+        let mut val = self.read_u8_hl(reg);
         let c = val & 0x01 != 0;
         val >>= 1;
         self.write_u8_hl(reg, val);
-        
+
         self.registers.set_flag("z", val == 0).unwrap();
         self.registers.set_flag("n", false).unwrap();
         self.registers.set_flag("h", false).unwrap();
@@ -64,7 +90,7 @@ impl CPU {
     }
     // swap
     fn swap(&mut self, reg: &str) {
-        let mut val= self.read_u8_hl(reg);
+        let mut val = self.read_u8_hl(reg);
         val = (val & 0x0f) << 4 | ((val & 0xf0) >> 4);
         self.write_u8_hl(reg, val);
 
@@ -72,10 +98,10 @@ impl CPU {
         self.registers.set_flag("n", false).unwrap();
         self.registers.set_flag("h", false).unwrap();
         self.registers.set_flag("c", false).unwrap();
-    } 
+    }
     // sra
     fn sra(&mut self, reg: &str) {
-        let mut val= self.read_u8_hl(reg);
+        let mut val = self.read_u8_hl(reg);
         let c = val & 0x01 != 0;
         val = (val & 0x80) | val >> 1;
         self.write_u8_hl(reg, val);
@@ -87,7 +113,7 @@ impl CPU {
     }
     // sla
     fn sla(&mut self, reg: &str) {
-        let mut val= self.read_u8_hl(reg);
+        let mut val = self.read_u8_hl(reg);
         let c = val & 0x80 != 0;
         val <<= 1;
         self.write_u8_hl(reg, val);
@@ -99,10 +125,10 @@ impl CPU {
     }
     // rr
     fn rr(&mut self, reg: &str) {
-        let mut val= self.read_u8_hl(reg);
+        let mut val = self.read_u8_hl(reg);
         let c = self.registers.get_flag("c").unwrap() as u8;
         self.registers.set_flag("c", val & 0x01 != 0).unwrap();
-        
+
         val = val >> 1 | c << 7;
         self.write_u8_hl(reg, val);
 
@@ -112,10 +138,10 @@ impl CPU {
     }
     // rl
     fn rl(&mut self, reg: &str) {
-        let mut val= self.read_u8_hl(reg);
+        let mut val = self.read_u8_hl(reg);
         let c = self.registers.get_flag("c").unwrap() as u8;
         self.registers.set_flag("c", val & 0x80 != 0).unwrap();
-        
+
         val = val << 1 | c;
         self.write_u8_hl(reg, val);
 
@@ -125,7 +151,7 @@ impl CPU {
     }
     // rrc
     fn rrc(&mut self, reg: &str) {
-        let mut val= self.read_u8_hl(reg);
+        let mut val = self.read_u8_hl(reg);
         val = val.rotate_right(1);
         self.write_u8_hl(reg, val);
 
@@ -136,7 +162,7 @@ impl CPU {
     }
     // rlc
     fn rlc(&mut self, reg: &str) {
-        let mut val= self.read_u8_hl(reg);
+        let mut val = self.read_u8_hl(reg);
         val = val.rotate_left(1);
         self.write_u8_hl(reg, val);
 
@@ -154,9 +180,10 @@ impl CPU {
     // u8 reg <- u16 reg ptr
     fn ld_from_ptr(&mut self, reg: &str, ptrreg: &str) {
         let ptr = self.registers.get_u16_reg(ptrreg).unwrap();
-        self.registers.set_u8_reg(reg, self.memory.get(ptr)).unwrap();
+        self.registers
+            .set_u8_reg(reg, self.memory.get(ptr))
+            .unwrap();
     }
-
     fn pop_stack(&mut self) -> u16 {
         let a = self.memory.get(self.registers.sp);
         let b = self.memory.get(self.registers.sp + 1);
@@ -185,37 +212,43 @@ impl CPU {
         let value = self.pop_stack();
         self.registers.set_u16_reg(reg, value).unwrap();
     }
-
     // pushes reg to stack u16
     fn push_reg(&mut self, reg: &str) {
         let value = self.registers.get_u16_reg(reg).unwrap();
         self.push_stack(value);
     }
-
     // a == reg
     fn cp(&mut self, reg: &str) {
-        let mut val: u8;
+        let val: u8;
         // if its hl, it's a pointer instead
         if reg == "hl" {
             let ptr = self.registers.get_u16_reg("hl").unwrap();
             val = self.memory.get(ptr);
-        } else { // otherwise get from reg
+        } else {
+            // otherwise get from reg
             val = self.registers.get_u8_reg(reg).unwrap();
         }
 
-        self.registers.set_flag("z", self.registers.a == val).unwrap();
+        self.registers
+            .set_flag("z", self.registers.a == val)
+            .unwrap();
         self.registers.set_flag("n", true).unwrap();
-        self.registers.set_flag("h", (self.registers.a & 0xf) < val & 0xf).unwrap();
-        self.registers.set_flag("c", self.registers.a < val).unwrap();
+        self.registers
+            .set_flag("h", (self.registers.a & 0xf) < val & 0xf)
+            .unwrap();
+        self.registers
+            .set_flag("c", self.registers.a < val)
+            .unwrap();
     }
     // a <- a ^ reg
     fn xor(&mut self, reg: &str) {
-        let mut val: u8;
+        let val: u8;
         // if its hl, it's a pointer instead
         if reg == "hl" {
             let ptr = self.registers.get_u16_reg("hl").unwrap();
             val = self.memory.get(ptr);
-        } else { // otherwise get from reg
+        } else {
+            // otherwise get from reg
             val = self.registers.get_u8_reg(reg).unwrap();
         }
 
@@ -227,12 +260,13 @@ impl CPU {
     }
     // a <- a | reg
     fn or(&mut self, reg: &str) {
-        let mut val: u8;
+        let val: u8;
         // if its hl, it's a pointer instead
         if reg == "hl" {
             let ptr = self.registers.get_u16_reg("hl").unwrap();
             val = self.memory.get(ptr);
-        } else { // otherwise get from reg
+        } else {
+            // otherwise get from reg
             val = self.registers.get_u8_reg(reg).unwrap();
         }
 
@@ -244,12 +278,13 @@ impl CPU {
     }
     // a <- a & reg
     fn and(&mut self, reg: &str) {
-        let mut val: u8;
+        let val: u8;
         // if its hl, it's a pointer instead
         if reg == "hl" {
             let ptr = self.registers.get_u16_reg("hl").unwrap();
             val = self.memory.get(ptr);
-        } else { // otherwise get from reg
+        } else {
+            // otherwise get from reg
             val = self.registers.get_u8_reg(reg).unwrap();
         }
 
@@ -263,7 +298,7 @@ impl CPU {
     fn adc_a(&mut self, reg: &str) {
         let val = self.registers.a as u16;
         let carry = self.registers.get_flag("c").unwrap() as u16;
-        let mut res: u16;
+        let res: u16;
         if reg == "hl" {
             let ptr = self.registers.get_u16_reg("hl").unwrap();
             res = self.memory.get(ptr) as u16;
@@ -273,19 +308,22 @@ impl CPU {
         let result = val + res + carry;
         self.registers.set_flag("z", result & 0xff == 0).unwrap();
         self.registers.set_flag("n", false).unwrap();
-        self.registers.set_flag("h", (val & 0xf) + (res & 0xf) + carry > 0xf).unwrap();
+        self.registers
+            .set_flag("h", (val & 0xf) + (res & 0xf) + carry > 0xf)
+            .unwrap();
         self.registers.set_flag("c", result > 0xff).unwrap();
-        
+
         self.registers.a = (result & 0xff) as u8;
     }
     // a <- a + reg
     fn add_a(&mut self, reg: &str) {
-        let mut val: u8;
+        let val: u8;
         // if its hl, it's a pointer instead
         if reg == "hl" {
             let ptr = self.registers.get_u16_reg("hl").unwrap();
             val = self.memory.get(ptr);
-        } else { // otherwise get from reg
+        } else {
+            // otherwise get from reg
             val = self.registers.get_u8_reg(reg).unwrap();
         }
 
@@ -293,19 +331,22 @@ impl CPU {
 
         self.registers.set_flag("z", result == 0).unwrap();
         self.registers.set_flag("n", false).unwrap();
-        self.registers.set_flag("h",(self.registers.a & 0xF) + (val & 0xF) > 0xF).unwrap();
+        self.registers
+            .set_flag("h", (self.registers.a & 0xF) + (val & 0xF) > 0xF)
+            .unwrap();
         self.registers.set_flag("c", overflow).unwrap();
 
         self.registers.a = result;
     }
     // a <- a - reg
     fn sub_a(&mut self, reg: &str) {
-        let mut val: u8;
+        let val: u8;
         // if its hl, it's a pointer instead
         if reg == "hl" {
             let ptr = self.registers.get_u16_reg("hl").unwrap();
             val = self.memory.get(ptr);
-        } else { // otherwise get from reg
+        } else {
+            // otherwise get from reg
             val = self.registers.get_u8_reg(reg).unwrap();
         }
 
@@ -313,7 +354,9 @@ impl CPU {
 
         self.registers.set_flag("z", result == 0).unwrap();
         self.registers.set_flag("n", true).unwrap();
-        self.registers.set_flag("h",(self.registers.a & 0xF) < (val & 0xF)).unwrap();
+        self.registers
+            .set_flag("h", (self.registers.a & 0xF) < (val & 0xF))
+            .unwrap();
         self.registers.set_flag("c", overflow).unwrap();
 
         self.registers.a = result
@@ -322,13 +365,14 @@ impl CPU {
     fn sbc_a(&mut self, reg: &str) {
         let val = self.registers.a as i16;
         let carry = self.registers.get_flag("c").unwrap() as i16;
-        let mut res: i16;
+        let res: i16;
 
         // if its hl, it's a pointer instead
         if reg == "hl" {
             let ptr = self.registers.get_u16_reg("hl").unwrap();
             res = self.memory.get(ptr) as i16;
-        } else { // otherwise get from reg
+        } else {
+            // otherwise get from reg
             res = self.registers.get_u8_reg(reg).unwrap() as i16;
         }
 
@@ -336,7 +380,9 @@ impl CPU {
 
         self.registers.set_flag("z", result & 0xff == 0).unwrap();
         self.registers.set_flag("n", true).unwrap();
-        self.registers.set_flag("h",(val & 0xf) < (res & 0xf) + carry).unwrap();
+        self.registers
+            .set_flag("h", (val & 0xf) < (res & 0xf) + carry)
+            .unwrap();
         self.registers.set_flag("c", result < 0x0).unwrap();
 
         self.registers.a = (result & 0xff) as u8
@@ -362,7 +408,8 @@ impl CPU {
             self.registers.set_flag("z", val == 0).unwrap();
             self.registers.set_flag("n", false).unwrap();
             self.registers.set_flag("h", (val & 0xF) == 0x0).unwrap();
-        } else { // 16 bit
+        } else {
+            // 16 bit
             let val = self.registers.get_u16_reg(reg).unwrap() + 1;
             self.registers.set_u16_reg(reg, val).unwrap();
         }
@@ -375,15 +422,15 @@ impl CPU {
             self.registers.set_flag("z", val == 0).unwrap();
             self.registers.set_flag("n", true).unwrap();
             self.registers.set_flag("h", val & 0xF == 0xF).unwrap();
-        } else { // 16 bit
+        } else {
+            // 16 bit
             let val = self.registers.get_u16_reg(reg).unwrap() - 1;
-            self.registers.set_u16_reg("bc", val).unwrap();
+            self.registers.set_u16_reg(reg, val).unwrap();
         }
     }
     fn jr(&mut self, value: i8) {
         self.registers.pc = self.registers.pc.wrapping_add_signed(value as i16);
     }
-
     // return is number of cycles executed
     fn execute_opcode(
         &mut self,
@@ -394,7 +441,7 @@ impl CPU {
     ) -> Result<u8, String> {
         let mut value: u16 = 0;
         // immediate 8 bits
-        if bytes == 2 {
+        if bytes == 2 && !cb {
             value = self.memory.get(self.registers.pc) as u16;
             self.registers.pc += 1;
         }
@@ -491,8 +538,16 @@ impl CPU {
                 0x27 => {
                     let mut t = self.registers.a;
                     let mut corr: u8 = 0;
-                    corr |= if self.registers.get_flag("h")? { 0x06 } else { 0x00 };
-                    corr |= if self.registers.get_flag("c")? { 0x60 } else { 0x00 };
+                    corr |= if self.registers.get_flag("h")? {
+                        0x06
+                    } else {
+                        0x00
+                    };
+                    corr |= if self.registers.get_flag("c")? {
+                        0x60
+                    } else {
+                        0x00
+                    };
 
                     if self.registers.get_flag("n")? {
                         t -= corr;
@@ -501,7 +556,7 @@ impl CPU {
                         corr |= if t > 0x99 { 0x60 } else { 0x00 };
                         t += corr;
                     }
-                    self.registers.set_flag("z",t == 0)?;
+                    self.registers.set_flag("z", t == 0)?;
                     self.registers.set_flag("c", corr & 0x60 != 0)?;
                     self.registers.set_flag("h", false)?;
                     self.registers.a = t;
@@ -514,7 +569,11 @@ impl CPU {
                     }
                 }
                 0x29 => self.add_16("hl"),
-                0x2a => self.ld_from_ptr("a", "hl"),
+                0x2a => { 
+                    
+                    self.ld_from_ptr("a", "hl");
+                    self.inc("hl");
+                }
                 0x2b => self.dec("hl"),
                 0x2c => self.inc("l"),
                 0x2d => self.dec("l"),
@@ -583,7 +642,8 @@ impl CPU {
                 0x3f => {
                     self.registers.set_flag("n", false)?;
                     self.registers.set_flag("h", false)?;
-                    self.registers.set_flag("c", !self.registers.get_flag("c")?)?;
+                    self.registers
+                        .set_flag("c", !self.registers.get_flag("c")?)?;
                 }
                 0x40 => self.registers.b = self.registers.b,
                 0x41 => self.registers.b = self.registers.c,
@@ -639,8 +699,7 @@ impl CPU {
                 0x73 => self.ld_to_ptr("hl", "e"),
                 0x74 => self.ld_to_ptr("hl", "h"),
                 0x75 => self.ld_to_ptr("hl", "l"),
-                // TODO: HALT
-                0x76 => {},
+                0x76 => self.halt = true,
                 0x77 => self.ld_to_ptr("hl", "a"),
                 0x78 => self.registers.a = self.registers.b,
                 0x79 => self.registers.a = self.registers.c,
@@ -743,7 +802,8 @@ impl CPU {
 
                     self.registers.set_flag("z", result == 0)?;
                     self.registers.set_flag("n", false)?;
-                    self.registers.set_flag("h",(self.registers.a & 0xF) + (value as u8 & 0xF) > 0xF)?;
+                    self.registers
+                        .set_flag("h", (self.registers.a & 0xF) + (value as u8 & 0xF) > 0xF)?;
                     self.registers.set_flag("c", overflow)?;
 
                     self.registers.a = result;
@@ -781,7 +841,8 @@ impl CPU {
                     let result = val + res + carry;
                     self.registers.set_flag("z", result & 0xff == 0)?;
                     self.registers.set_flag("n", false)?;
-                    self.registers.set_flag("h", (val & 0xf) + (res & 0xf) + carry > 0xf)?;
+                    self.registers
+                        .set_flag("h", (val & 0xf) + (res & 0xf) + carry > 0xf)?;
                     self.registers.set_flag("c", result > 0xff)?;
 
                     self.registers.a = (result & 0xff) as u8;
@@ -816,7 +877,9 @@ impl CPU {
 
                     self.registers.set_flag("z", result == 0).unwrap();
                     self.registers.set_flag("n", true).unwrap();
-                    self.registers.set_flag("h",(self.registers.a & 0xF) < (value & 0xF) as u8).unwrap();
+                    self.registers
+                        .set_flag("h", (self.registers.a & 0xF) < (value & 0xF) as u8)
+                        .unwrap();
                     self.registers.set_flag("c", overflow).unwrap();
 
                     self.registers.a = result
@@ -830,7 +893,7 @@ impl CPU {
                     }
                 }
                 0xd9 => {
-                    self.i_master = true;
+                    self.motherboard.i_master.set(true);
                     self.ret();
                 }
                 0xda => {
@@ -858,7 +921,8 @@ impl CPU {
 
                     self.registers.set_flag("z", result & 0xff == 0)?;
                     self.registers.set_flag("n", true)?;
-                    self.registers.set_flag("h",(val & 0xf) < (res & 0xf) + carry)?;
+                    self.registers
+                        .set_flag("h", (val & 0xf) < (res & 0xf) + carry)?;
                     self.registers.set_flag("c", result < 0x0)?;
 
                     self.registers.a = (result & 0xff) as u8
@@ -900,7 +964,7 @@ impl CPU {
                     self.registers.set_flag("z", false)?;
                     self.registers.set_flag("n", false)?;
                     self.registers.set_flag("h", h)?;
-                    self.registers.set_flag("c",c)?;
+                    self.registers.set_flag("c", c)?;
                 }
                 0xe9 => self.jp_to(self.registers.get_u16_reg("hl")?),
                 0xea => self.memory.set(value, self.registers.a),
@@ -921,7 +985,7 @@ impl CPU {
                     self.registers.f &= 0xf0;
                 }
                 0xf2 => self.registers.a = self.memory.get(self.registers.c as u16 + 0xff00),
-                0xf3 => self.i_master = false,
+                0xf3 => self.motherboard.i_master.set(false),
                 0xf4 => unreachable!(),
                 0xf5 => {
                     self.registers.f &= 0xf0;
@@ -951,21 +1015,24 @@ impl CPU {
                     self.registers.set_flag("z", false)?;
                     self.registers.set_flag("n", false)?;
                     self.registers.set_flag("h", h)?;
-                    self.registers.set_flag("c",c)?;
+                    self.registers.set_flag("c", c)?;
                 }
                 0xf9 => self.registers.sp = self.registers.get_u16_reg("hl")?,
                 0xfa => self.registers.a = self.memory.get(value),
-                0xfb => self.i_master = true,
+                0xfb => self.motherboard.i_master.set(true),
                 0xfc => unreachable!(),
                 0xfd => unreachable!(),
                 0xfe => {
-                    self.registers.set_flag("z", self.registers.a == value as u8)?;
+                    self.registers
+                        .set_flag("z", self.registers.a == value as u8)?;
                     self.registers.set_flag("n", true)?;
-                    self.registers.set_flag("h", (self.registers.a & 0xf) < value as u8 & 0xf)?;
-                    self.registers.set_flag("c", self.registers.a < value as u8)?;
+                    self.registers
+                        .set_flag("h", (self.registers.a & 0xf) < value as u8 & 0xf)?;
+                    self.registers
+                        .set_flag("c", self.registers.a < value as u8)?;
                 }
                 0xff => self.call(value),
-                _ => unreachable!(),
+                _ => unreachable!(), // makes the compiler stop complaining
             }
         }
         // cb prefixed instructions
@@ -1277,9 +1344,129 @@ impl CPU {
             (address, opcode, bytes as u8, cycles.clone(), cb)
         }
     }
+    pub fn gen_log(&self) -> String {
+        let a = self.registers.a;
+        let f = self.registers.f;
+        let b = self.registers.b;
+        let c = self.registers.c;
+        let d = self.registers.d;
+        let e = self.registers.e;
+        let h = self.registers.h;
+        let l = self.registers.l;
+        let sp = self.registers.sp;
+        let pc = self.registers.pc;
+        let mem1 = self.memory.get(pc);
+        let mem2 = self.memory.get(pc + 1);
+        let mem3 = self.memory.get(pc + 2);
+        let mem4 = self.memory.get(pc + 3);
+        format!(
+            "A:{:02X} F:{:02X} B:{:02X} C:{:02X} D:{:02X} E:{:02X} H:{:02X} L:{:02X} SP:{:04X} PC:{:04X} PCMEM:{:02X},{:02X},{:02X},{:02X}",
+            a, f, b, c, d, e, h, l, sp, pc, mem1, mem2, mem3, mem4
+        )
+    }
+    pub fn run(&mut self) {
+        let mut file = File::create("log.txt").unwrap();
+        while true {
+            let logln = self.gen_log();
+            writeln!(file, "{}", logln);
+            self.update();
+        }
+    }
 
     // runs one full cpu tick
-    fn update(&self) {
+    pub fn update(&mut self) {
+        let cycles: u8;
 
+        // blargg debug
+        self.handle_blargg();
+
+        if !self.halt {
+            cycles = self.execute_next_op();
+        } else {
+            cycles = 4;
+        }
+
+        let timer_int = self.motherboard.timer.borrow_mut().tick(cycles);
+        if timer_int {
+            self.set_interrupt(2);
+        }
+
+        // TODO: add screen
+
+        // Interrupt handling
+        if self.check_interrupt() {
+            self.halt = false;
+        }
+
+        if self.halt && self.i_queue {
+            self.halt = false;
+            self.registers.pc += 1;
+        }
+
+        self.i_queue = false;
+    }
+
+    fn set_interrupt(&mut self, bit: u8) {
+        let flag = 1 << bit;
+        self.motherboard
+            .i_flag
+            .set(self.motherboard.i_flag.get() | flag);
+    }
+
+    fn check_interrupt(&mut self) -> bool {
+        let total =
+            (self.motherboard.i_enable.get() & 0b11111) & (self.motherboard.i_flag.get() & 0b11111);
+        if total != 0 {
+            if self.motherboard.i_master.get() {
+                // vblank
+                if total & 0b1 != 0 {
+                    self.handle_interrupt(0b1, 0x40);
+                }
+                // lcd
+                else if total & 0b10 != 0 {
+                    self.handle_interrupt(0b1, 0x40);
+                }
+                // timer
+                else if total & 0b100 != 0 {
+                    self.handle_interrupt(0b1, 0x40);
+                }
+                // serial
+                else if total & 0b1000 != 0 {
+                    self.handle_interrupt(0b1, 0x40);
+                }
+                // joypad
+                else if total & 0b10000 != 0 {
+                    self.handle_interrupt(0b1, 0x40);
+                }
+            }
+            self.i_queue = true;
+            true
+        } else {
+            self.i_queue = false;
+            false
+        }
+    }
+
+    fn handle_interrupt(&mut self, flag: u8, address: u16) {
+        // clear flag
+        self.motherboard
+            .i_flag
+            .set(self.motherboard.i_flag.get() ^ flag);
+        self.call(address);
+        self.motherboard.i_master.set(false);
+    }
+
+    fn handle_blargg(&mut self) {
+        let mut temp = false;
+        if self.memory.get(0xff02) == 0x81 {
+            let val = self.memory.get(0xff01) as char;
+            self.blargg.push(val);
+            self.memory.set(0xff02, 0);
+            temp = true;
+        }
+
+        if !self.blargg.is_empty() && temp {
+            println!("{}", self.blargg)
+        }
     }
 }
