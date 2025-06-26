@@ -1,14 +1,12 @@
+mod registers;
 use crate::memory::Memory;
 use crate::motherboard::Motherboard;
-use crate::registers::Registers;
-use crate::timer::Timer;
+use registers::Registers;
 use serde_json::Value;
-use std::cell::{Cell, RefCell};
-use std::convert::Infallible;
 use std::fs;
 use std::fs::File;
-use std::io::Write;
 use std::rc::Rc;
+
 
 pub struct CPU {
     pub registers: Registers,
@@ -41,6 +39,7 @@ impl CPU {
     // u8 reg or hl address read
     fn read_u8_hl(&mut self, reg: &str) -> u8 {
         if reg == "hl" {
+            self.motherboard.cycles.set(self.motherboard.cycles.get() + 4);
             self.memory.get(self.registers.get_u16_reg("hl").unwrap())
         } else {
             self.registers.get_u8_reg(reg).unwrap()
@@ -49,6 +48,7 @@ impl CPU {
     // u8 reg or hl address write
     fn write_u8_hl(&mut self, reg: &str, value: u8) {
         if reg == "hl" {
+            self.motherboard.cycles.set(self.motherboard.cycles.get() + 4);
             self.memory
                 .set(self.registers.get_u16_reg("hl").unwrap(), value);
         } else {
@@ -180,6 +180,7 @@ impl CPU {
     // u8 reg <- u16 reg ptr
     fn ld_from_ptr(&mut self, reg: &str, ptrreg: &str) {
         let ptr = self.registers.get_u16_reg(ptrreg).unwrap();
+        let mut val = false;
         self.registers
             .set_u8_reg(reg, self.memory.get(ptr))
             .unwrap();
@@ -502,7 +503,7 @@ impl CPU {
                     self.registers.set_flag("n", false)?;
                     self.registers.set_flag("h", false)?;
                     self.registers.set_flag("c", self.registers.a & 0x80 != 0)?;
-                    self.registers.a = self.registers.a << 1 + c;
+                    self.registers.a = self.registers.a << 1 | c;
                 }
                 0x18 => self.jr(value as i8),
                 0x19 => self.add_16("de"),
@@ -599,6 +600,7 @@ impl CPU {
                 0x34 => {
                     let ptr = self.registers.get_u16_reg("hl")?;
                     let val = self.memory.get(ptr) + 1;
+                    self.motherboard.cycles.set(self.motherboard.cycles.get() + 4);
                     self.memory.set(ptr, val);
 
                     self.registers.set_flag("z", val == 0)?;
@@ -608,6 +610,7 @@ impl CPU {
                 0x35 => {
                     let ptr = self.registers.get_u16_reg("hl")?;
                     let val = self.memory.get(ptr) - 1;
+                    self.motherboard.cycles.set(self.motherboard.cycles.get() + 4);
                     self.memory.set(ptr, val);
 
                     self.registers.set_flag("z", val == 0)?;
@@ -616,6 +619,7 @@ impl CPU {
                 }
                 0x36 => {
                     let ptr = self.registers.get_u16_reg("hl")?;
+                    self.motherboard.cycles.set(self.motherboard.cycles.get() + 4);
                     self.memory.set(ptr, value as u8);
                 }
                 0x37 => {
@@ -929,6 +933,7 @@ impl CPU {
                 }
                 0xdf => self.call(0x18),
                 0xe0 => {
+                    self.motherboard.cycles.set(self.motherboard.cycles.get() + 4);
                     self.memory.set(value + 0xFF00, self.registers.a);
                 }
                 0xe1 => self.pop_reg("hl"),
@@ -967,7 +972,10 @@ impl CPU {
                     self.registers.set_flag("c", c)?;
                 }
                 0xe9 => self.jp_to(self.registers.get_u16_reg("hl")?),
-                0xea => self.memory.set(value, self.registers.a),
+                0xea => {
+                    self.motherboard.cycles.set(self.motherboard.cycles.get() + 8);
+                    self.memory.set(value, self.registers.a)
+                },
                 0xeb => unreachable!(),
                 0xec => unreachable!(),
                 0xed => unreachable!(),
@@ -979,7 +987,10 @@ impl CPU {
                     self.registers.set_flag("c", false)?;
                 }
                 0xef => self.call(0x28),
-                0xf0 => self.registers.a = self.memory.get(value + 0xff00),
+                0xf0 => {
+                    self.motherboard.cycles.set(self.motherboard.cycles.get() + 4);
+                    self.registers.a = self.memory.get(value + 0xff00) 
+                },
                 0xf1 => {
                     self.pop_reg("af");
                     self.registers.f &= 0xf0;
@@ -1018,7 +1029,10 @@ impl CPU {
                     self.registers.set_flag("c", c)?;
                 }
                 0xf9 => self.registers.sp = self.registers.get_u16_reg("hl")?,
-                0xfa => self.registers.a = self.memory.get(value),
+                0xfa => {
+                    self.motherboard.cycles.set(self.motherboard.cycles.get() + 8);
+                    self.registers.a = self.memory.get(value) 
+                },
                 0xfb => self.motherboard.i_master.set(true),
                 0xfc => unreachable!(),
                 0xfd => unreachable!(),
@@ -1367,8 +1381,7 @@ impl CPU {
     pub fn run(&mut self) {
         let mut file = File::create("log.txt").unwrap();
         while true {
-            let logln = self.gen_log();
-            writeln!(file, "{}", logln);
+            //writeln!(file, "{}", self.gen_log()).unwrap();
             self.update();
         }
     }
@@ -1385,12 +1398,16 @@ impl CPU {
         } else {
             cycles = 4;
         }
-
-        let timer_int = self.motherboard.timer.borrow_mut().tick(cycles);
+        
+        let timer_int = self.motherboard.timer.borrow_mut().tick(cycles - self.motherboard.sync_cycles.get());
         if timer_int {
             self.set_interrupt(2);
         }
-
+        
+        // reset cycle counters
+        self.motherboard.sync_cycles.set(0);
+        self.motherboard.cycles.set(0);
+        
         // TODO: add screen
 
         // Interrupt handling
@@ -1424,19 +1441,19 @@ impl CPU {
                 }
                 // lcd
                 else if total & 0b10 != 0 {
-                    self.handle_interrupt(0b1, 0x40);
+                    self.handle_interrupt(0b10, 0x48);
                 }
                 // timer
                 else if total & 0b100 != 0 {
-                    self.handle_interrupt(0b1, 0x40);
+                    self.handle_interrupt(0b100, 0x50);
                 }
                 // serial
                 else if total & 0b1000 != 0 {
-                    self.handle_interrupt(0b1, 0x40);
+                    self.handle_interrupt(0b1000, 0x58);
                 }
                 // joypad
                 else if total & 0b10000 != 0 {
-                    self.handle_interrupt(0b1, 0x40);
+                    self.handle_interrupt(0b10000, 0x60);
                 }
             }
             self.i_queue = true;

@@ -1,9 +1,6 @@
-use std::cell::RefCell;
-use std::ptr::addr_eq;
-use std::rc::{Rc, Weak};
+use std::rc::{Rc};
 use multi_compare::c;
 use crate::cartridge::Cartridge;
-use crate::cpu::CPU;
 use crate::motherboard::Motherboard;
 
 pub struct Memory {
@@ -24,8 +21,8 @@ impl Memory {
         Self {
             cartridge: Cartridge::new(rom).unwrap(),
             motherboard: mobo.clone(),
-            h_ram: [0xff; 128],
-            i_ram: [0xff; 0x2000],
+            h_ram: [0; 128],
+            i_ram: [0; 0x2000],
             sb1: 0,
             sb2: 0,
         }
@@ -77,6 +74,7 @@ impl Memory {
         }
     }
     pub fn set(&mut self, address: u16, value: u8) {
+        
         // cartridge rom read
         if address < 0x8000 {
             self.cartridge.write(address, value);
@@ -125,6 +123,7 @@ impl Memory {
     
     // TODO: implement io reads
     fn io_read(&self, address: u16) -> u8 {
+        
         match address {
             // joypad
             0xff00 => {0}
@@ -138,6 +137,7 @@ impl Memory {
             }
             // timer
             0xff04..=0xff07 => {
+                self.motherboard.sync();
                 self.motherboard.timer.borrow().get(address)
             }
             // interrupt
@@ -174,6 +174,7 @@ impl Memory {
             }
             // timer
             0xff04..=0xff07 => {
+                self.motherboard.sync();
                 self.motherboard.timer.borrow_mut().set(address, value);
             }
             // interrupt

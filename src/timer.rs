@@ -1,4 +1,3 @@
-use std::convert::Infallible;
 
 #[derive(Default, Debug, Clone, Eq, PartialEq)]
 pub struct Timer {
@@ -6,8 +5,8 @@ pub struct Timer {
     div_counter: u16,
     tac: u8,
     tma: u8,
-    tima: u16,
-    counter: isize
+    tima: u8,
+    pub counter: isize
 }
 
 impl Timer {
@@ -24,7 +23,7 @@ impl Timer {
     pub fn get(&self, address: u16) -> u8 {
         match address {  
             0xff04 => self.div as u8,
-            0xff05 => self.tima as u8,
+            0xff05 => self.tima,
             0xff06 => self.tma,
             0xff07 => self.tac,
             _ => unreachable!()
@@ -34,8 +33,10 @@ impl Timer {
     pub fn set(&mut self, address: u16, value: u8) {
         match address {
             0xff04 => self.reset(),
-            0xff05 => self.tima = value as u16,
-            0xff06 => self.tma = value,
+            0xff05 => self.tima = value,
+            0xff06 => { 
+                self.tma = value;
+            },
             0xff07 => { 
                 let temp = self.tac;
                 self.tac = value & 0b111;
@@ -58,7 +59,7 @@ impl Timer {
         self.div += self.div_counter >> 8;
         self.div_counter &= 0xff;
         self.div &= 0xff;
-        
+
         // check timer enabled
         if self.tac & 0b100 == 0 {
             return false;
@@ -67,13 +68,12 @@ impl Timer {
         self.counter -= cycles as isize;
         if self.counter <= 0 {
             // reset timer on overflow
-            self.counter += self.get_freq() as isize;
-            self.tima += 1;
-            
+            self.counter += self.get_freq();
+            let (res, ov) = self.tima.overflowing_add(1);
+            self.tima = res;
             // On tima overflow, trigger interrupt
-            if self.tima > 255 {
-                self.tima = self.tma as u16;
-                self.tima &= 0xff;
+            if ov {
+                self.tima = self.tma;
                 return true;
             }
         }
@@ -81,7 +81,7 @@ impl Timer {
     }
     
     // gets the clock freq
-    fn get_freq(&self) -> u16 {
+    fn get_freq(&self) -> isize {
         let c_select = self.tac & 0b11;
         match c_select {
             0 => 1024,
@@ -94,7 +94,7 @@ impl Timer {
     
     // resets counter
     fn reset_counter(&mut self) {
-        self.counter = self.get_freq() as isize;
+        self.counter = self.get_freq();
     }
     
     // reset timer
