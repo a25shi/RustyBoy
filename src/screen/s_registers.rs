@@ -12,7 +12,6 @@ impl Palette {
             palette: [0xFF, 0x99, 0x55, 0x00],
         }
     }
-
     pub fn set(&mut self, value: u8) -> bool {
         if self.value == value {
             return false;
@@ -23,7 +22,6 @@ impl Palette {
         }
         true
     }
-
     pub fn get(&self) -> u8 {
         self.value
     }
@@ -34,7 +32,7 @@ impl Palette {
 }
 // lcdc register
 pub struct LCDC {
-    value: u8,
+    pub value: u8,
     pub lcd_enable: bool,
     pub windowmap_select: bool,
     pub window_enable: bool,
@@ -64,6 +62,8 @@ impl LCDC {
         }
     }
     pub fn set(&mut self, value: u8) {
+        self.value = value;
+        
         self.lcd_enable = value & (1 << 7) != 0;
         self.windowmap_select = value & (1 << 6) != 0;
         self.window_enable = value & (1 << 5) != 0;
@@ -72,11 +72,13 @@ impl LCDC {
         self.sprite_height = value & (1 << 2) != 0;
         self.sprite_enable = value & (1 << 1) != 0;
         self.background_enable = value & (1 << 0) != 0;
-
+        
+        //println!("Writing value {} to background enable", value & (1 << 0));
+        
         // All VRAM addresses are offset by 0x8000
         // Following addresses are 0x9800 and 0x9C00
         self.backgroundmap_offset = if !self.backgroundmap_select { 0x1800 } else { 0x1C00 };
-        self.windowmap_offset = if !self.windowmap_select { 0x1800 } else { 0x1C00 }
+        self.windowmap_offset = if !self.windowmap_select { 0x1800 } else { 0x1C00 };
     }
 }
 
@@ -93,6 +95,11 @@ impl STAT {
             mode: 0
         }
     }
+    pub fn set(&mut self, value: u8) {
+        let newvalue = value & 0b0111_1000;
+        self.value &= 0b1000_0111;
+        self.value |= newvalue;
+    }
     pub fn set_mode(&mut self, mode: u8) -> bool {
         if self.mode == mode {
             return false;
@@ -105,12 +112,11 @@ impl STAT {
         if mode != 3 && (self.value & (1 << (mode + 3)) != 0) {
             return true;
         }
-        
         false
     }
     pub fn update_lyc(&mut self, lyc: u8, ly: u8) -> bool {
         if lyc == ly {
-            self.value |= 0b100; // clears flag
+            self.value |= 0b100; // sets flag
             if self.value & 0b0100_0000 != 0 {
                 return true;
             } 
@@ -119,5 +125,50 @@ impl STAT {
             self.value &= 0b1111_1011;
         }
         false
+    }
+}
+
+pub struct TileCache {
+    tile_state: [bool; 384], // checks which tiles are cached
+    pub tile_cache: [u8; 384 * 8 * 8] // tile cache
+}
+
+impl TileCache {
+    pub fn new() -> Self {
+        Self {
+            tile_state: [false; 384],
+            tile_cache: [0; 384 * 8 * 8]
+        }
+    }
+    pub fn update_tile(&mut self, tile_index: usize, vram: &[u8]) {
+        if self.tile_state[tile_index] {
+            return;
+        }
+        
+        // For each line in the tile
+        for y in 0..8 {
+            let byte1 = vram[tile_index * 16 + y * 2];
+            let byte2 = vram[tile_index * 16 + y * 2 + 1];
+            
+            // For each pixel in the line
+            for i in 0..8 {
+                // bit 1
+                let mut col_index = ((byte2 >> i) & 1) << 1;
+                // bit 0
+                col_index |= (byte1 >> i) & 1;
+                // Rightmost bit is the leftmost pixel (bit 7 = pixel 0, bit 6 = pixel 1, etc.)
+                let x = 7 - i;
+                // Each tile has 64 pixels, each line is 8 pixels
+                self.tile_cache[tile_index * 64 + y * 8 + x] = col_index;
+            }
+        }
+        
+        self.tile_state[tile_index] = true;
+    }
+    pub fn clear_cache(&mut self) {
+        self.tile_state = [false; 384]
+    }
+    pub fn clear_tile(&mut self, tile_index: usize) {
+        self.tile_state[tile_index] = false;
     }
 }

@@ -3,15 +3,15 @@ use crate::memory::Memory;
 use crate::motherboard::Motherboard;
 use registers::Registers;
 use serde_json::Value;
-use std::fs;
+use std::{fs, process};
 use std::fs::File;
 use std::rc::Rc;
-
+use sdl2::libc::exit;
 
 pub struct CPU {
     pub registers: Registers,
     memory: Memory,
-    motherboard: Rc<Motherboard>,
+    pub motherboard: Rc<Motherboard>,
     opcode_table: Value,
     i_queue: bool,
     halt: bool,
@@ -22,9 +22,9 @@ impl CPU {
     pub fn new(rom_file: Vec<u8>) -> Self {
         let opcodedata = fs::read_to_string("./src/opcodes/Opcodes.json").unwrap();
         // let rom: Vec<u8> = fs::read(rom_file).unwrap();
-        let mobo = Rc::new(Motherboard::new());
+        let mobo = Motherboard::new();
         // Initialize self
-        let this = Self {
+        let mut this = Self {
             registers: Registers::new(),
             memory: Memory::new(rom_file, &mobo),
             opcode_table: serde_json::from_str(&opcodedata).unwrap(),
@@ -33,6 +33,39 @@ impl CPU {
             halt: false,
             blargg: String::new(),
         };
+        
+        this.memory.set(0xFF05, 0x00);
+        this.memory.set(0xFF06, 0x00);
+        this.memory.set(0xFF07, 0x00);
+        this.memory.set(0xFF10, 0x80);
+        this.memory.set(0xFF11, 0xBF);
+        this.memory.set(0xFF12, 0xF3);
+        this.memory.set(0xFF14, 0xBF);
+        this.memory.set(0xFF16, 0x3F);
+        this.memory.set(0xFF17, 0x00);
+        this.memory.set(0xFF19, 0xBF);
+        this.memory.set(0xFF1A, 0x7F);
+        this.memory.set(0xFF1B, 0xFF);
+        this.memory.set(0xFF1C, 0x9F);
+        this.memory.set(0xFF1E, 0xBF);
+        this.memory.set(0xFF20, 0xFF);
+        this.memory.set(0xFF21, 0x00);
+        this.memory.set(0xFF22, 0x00);
+        this.memory.set(0xFF23, 0xBF);
+        this.memory.set(0xFF24, 0x77);
+        this.memory.set(0xFF25, 0xF3);
+        this.memory.set(0xFF26, 0xF1);
+        this.memory.set(0xFF40, 0x91);
+        this.memory.set(0xFF42, 0x00);
+        this.memory.set(0xFF43, 0x00);
+        this.memory.set(0xFF45, 0x00);
+        this.memory.set(0xFF47, 0xFC);
+        this.memory.set(0xFF48, 0xFF);
+        this.memory.set(0xFF48, 0xFF);
+        this.memory.set(0xFF49, 0xFF);
+        this.memory.set(0xFF4A, 0x00);
+        this.memory.set(0xFF4B, 0x00);
+        this.memory.set(0xFFFF, 0x00);
         this
     }
 
@@ -40,6 +73,8 @@ impl CPU {
     fn read_u8_hl(&mut self, reg: &str) -> u8 {
         if reg == "hl" {
             self.motherboard.cycles.set(self.motherboard.cycles.get() + 4);
+            //println!("Reading from {:04x}", self.registers.get_u16_reg("hl").unwrap());
+            //println!("LCDC value {}", self.motherboard.screen.borrow().LCDC.value);
             self.memory.get(self.registers.get_u16_reg("hl").unwrap())
         } else {
             self.registers.get_u8_reg(reg).unwrap()
@@ -59,7 +94,7 @@ impl CPU {
     fn bit(&mut self, reg: &str, shift: u8) {
         let val = self.read_u8_hl(reg);
         let ret = val & (1 << shift);
-
+        //println!("val {val} ret {ret}");
         self.registers.set_flag("z", ret == 0).unwrap();
         self.registers.set_flag("n", false).unwrap();
         self.registers.set_flag("h", true).unwrap();
@@ -703,7 +738,10 @@ impl CPU {
                 0x73 => self.ld_to_ptr("hl", "e"),
                 0x74 => self.ld_to_ptr("hl", "h"),
                 0x75 => self.ld_to_ptr("hl", "l"),
-                0x76 => self.halt = true,
+                0x76 => {
+                    //println!("HALT");
+                    self.halt = true;
+                },
                 0x77 => self.ld_to_ptr("hl", "a"),
                 0x78 => self.registers.a = self.registers.b,
                 0x79 => self.registers.a = self.registers.c,
@@ -1317,7 +1355,9 @@ impl CPU {
     fn execute_next_op(&mut self) -> u8 {
         let address: u16 = self.registers.pc;
         let (new_address, opcode, bytes, cycles, cb) = self.decode(address);
+        // !("address: {address:04x} with opcode {opcode:02x}");
         self.registers.pc = new_address;
+        // println!("executing opcode {opcode:02x} cb: {cb}");
         self.execute_opcode(opcode, bytes, cycles, cb).unwrap()
     }
 
@@ -1385,7 +1425,6 @@ impl CPU {
             self.update();
         }
     }
-
     // runs one full cpu tick
     pub fn update(&mut self) {
         let cycles: u8;
@@ -1398,21 +1437,38 @@ impl CPU {
         } else {
             cycles = 4;
         }
+        // println!("{}", self.gen_log());
         
+        // tick timer
         let timer_int = self.motherboard.timer.borrow_mut().tick(cycles - self.motherboard.sync_cycles.get());
         if timer_int {
             self.set_interrupt(2);
         }
         
+        // tick screen
+        self.motherboard.screen.borrow_mut().update(cycles - self.motherboard.sync_cycles.get());
+        
         // reset cycle counters
         self.motherboard.sync_cycles.set(0);
         self.motherboard.cycles.set(0);
-        
-        // TODO: add screen
 
+        let i_enable = self.motherboard.i_enable.get();
+        let i_flag = self.motherboard.i_flag.get();
+        let i_master = self.motherboard.i_master.get();
+
+        // println!("i_enable: {i_enable:02x} i_flag: {i_flag:02x} i_master: {i_master}");
         // Interrupt handling
         if self.check_interrupt() {
+            //println!("HERE!");
             self.halt = false;
+        }
+        //  println!("LY: {}, LYC {}", self.motherboard.screen.borrow().LY, self.motherboard.screen.borrow().LYC);
+        // if self.halt {
+        //     process::exit(1);
+        // }
+        
+        if self.motherboard.screen.borrow().LY == 0 && self.motherboard.screen.borrow().LYC == 16 {
+            process::exit(1);
         }
 
         if self.halt && self.i_queue {
@@ -1431,6 +1487,11 @@ impl CPU {
     }
 
     fn check_interrupt(&mut self) -> bool {
+        let i_enable = self.motherboard.i_enable.get();
+        let i_flag = self.motherboard.i_flag.get();
+        let i_master = self.motherboard.i_master.get();
+        
+        // println!("i_enable: {i_enable:02x} i_flag: {i_flag:02x} i_master: {i_master}");
         let total =
             (self.motherboard.i_enable.get() & 0b11111) & (self.motherboard.i_flag.get() & 0b11111);
         if total != 0 {

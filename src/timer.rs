@@ -29,7 +29,6 @@ impl Timer {
             _ => unreachable!()
         }
     }
-
     pub fn set(&mut self, address: u16, value: u8) {
         match address {
             0xff04 => self.reset(),
@@ -48,7 +47,6 @@ impl Timer {
             _ => unreachable!()
         }
     }
-    
     pub fn tick(&mut self, cycles: u8) -> bool {
         // dont bother on empty cycles
         if cycles == 0 {
@@ -79,7 +77,6 @@ impl Timer {
         }
         false
     }
-    
     // gets the clock freq
     fn get_freq(&self) -> isize {
         let c_select = self.tac & 0b11;
@@ -91,12 +88,10 @@ impl Timer {
             _ => unreachable!()
         }
     }
-    
     // resets counter
     fn reset_counter(&mut self) {
         self.counter = self.get_freq();
     }
-    
     // reset timer
     fn reset(&mut self) {
         self.div = 0;

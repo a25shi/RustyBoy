@@ -32,9 +32,9 @@ impl Memory {
         if address < 0x8000 {
             self.cartridge.read(address)
         }
-        // TODO: vram
+        // vram
         else if c!(0x8000 <= address < 0xa000) {
-            0
+            self.motherboard.screen.borrow().get(address)
         }
         // cartridge ram
         else if c!(0xa000 <= address < 0xc000) {
@@ -48,9 +48,9 @@ impl Memory {
         else if c!(0xe000 <= address < 0xfe00) {
             self.get(address - 0x2000)
         }
-        // TODO: oam
+        // oam
         else if c!(0xfe00 <= address < 0xfea0) {
-            0
+            self.motherboard.screen.borrow().get(address)
         }
         // prohibited region
         else if c!(0xfea0 <= address < 0xff00) {
@@ -74,14 +74,13 @@ impl Memory {
         }
     }
     pub fn set(&mut self, address: u16, value: u8) {
-        
         // cartridge rom read
         if address < 0x8000 {
             self.cartridge.write(address, value);
         }
-        // TODO: vram
+        // vram
         else if c!(0x8000 <= address < 0xa000) {
-            
+            self.motherboard.screen.borrow_mut().set(address, value);
         }
         // cartridge ram
         else if c!(0xa000 <= address < 0xc000) {
@@ -95,9 +94,9 @@ impl Memory {
         else if c!(0xe000 <= address < 0xfe00) {
             self.set(address - 0x2000, value);
         }
-        // TODO: oam
+        // oam
         else if c!(0xfe00 <= address < 0xfea0) {
-            
+            self.motherboard.screen.borrow_mut().set(address, value);
         }
         // prohibited region
         else if c!(0xfea0 <= address < 0xff00) {
@@ -121,12 +120,10 @@ impl Memory {
         }
     }
     
-    // TODO: implement io reads
     fn io_read(&self, address: u16) -> u8 {
-        
         match address {
             // joypad
-            0xff00 => {0}
+            0xff00 => {0xff}
             // serial bus
             0xff01..=0xff02 => {
                 if address == 0xff01 {
@@ -148,18 +145,15 @@ impl Memory {
             0xff10..=0xff26 => 0xff,
             // TODO: audio ram
             0xff30..=0xff3f => 0xff,
-            // TODO: screen
+            // screen
             0xff40..=0xff4b => {
-                if address == 0xff44 {
-                    0x90
-                } else {
-                    0xff
-                }
+                self.motherboard.sync();
+                self.motherboard.screen.borrow().get(address)
             }
             _ => 0xff
         }
     }
-    // TODO: implement io writes
+    
     fn io_write(&mut self, address: u16, value: u8) {
         match address {
             // joypad
@@ -185,17 +179,36 @@ impl Memory {
             0xff10..=0xff26 => {},
             // TODO: audio ram
             0xff30..=0xff3f => {},
-            // TODO: screen
+            // screen
             0xff40..=0xff4b => {
+                self.motherboard.sync();
+                // LCDC set 
+                if address == 0xff40 {
+                    let mut screen = self.motherboard.screen.borrow_mut();
+                    let prev = screen.LCDC.lcd_enable;
+                    screen.LCDC.set(value);
+                    //println!("writing value {value:02x} to lcdc");
+                    //println!("LCDC value {:02x}", screen.LCDC.value);
+                    // If screen is on then turned off
+                    if prev && !screen.LCDC.lcd_enable {
+                        screen.scan_counter = 0;
+                        let inter = screen.STAT.set_mode(0);
+                        if inter {
+                            self.motherboard.set_interrupt(1);
+                        }
+                        //println!("SETTING LY to 0");
+                        screen.LY = 0;
+                    }
+                }
                 // DMA
-                if address == 0xff46 {
+                else if address == 0xff46 {
                     self.dma(value);
                 }
                 // Otherwise screen
                 else {
-                    
+                    self.motherboard.screen.borrow_mut().set(address, value);
                 }
-            },
+            }
             // Do nothing
             _ => {}
         }
