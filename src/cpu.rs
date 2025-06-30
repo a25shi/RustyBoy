@@ -34,6 +34,7 @@ impl CPU {
             blargg: String::new(),
         };
         
+        // Init memory values
         this.memory.set(0xFF05, 0x00);
         this.memory.set(0xFF06, 0x00);
         this.memory.set(0xFF07, 0x00);
@@ -61,11 +62,11 @@ impl CPU {
         this.memory.set(0xFF45, 0x00);
         this.memory.set(0xFF47, 0xFC);
         this.memory.set(0xFF48, 0xFF);
-        this.memory.set(0xFF48, 0xFF);
         this.memory.set(0xFF49, 0xFF);
         this.memory.set(0xFF4A, 0x00);
         this.memory.set(0xFF4B, 0x00);
         this.memory.set(0xFFFF, 0x00);
+        
         this
     }
 
@@ -684,7 +685,10 @@ impl CPU {
                     self.registers
                         .set_flag("c", !self.registers.get_flag("c")?)?;
                 }
-                0x40 => self.registers.b = self.registers.b,
+                // mooneye debug
+                0x40 => { 
+                    self.registers.b = self.registers.b;
+                },
                 0x41 => self.registers.b = self.registers.c,
                 0x42 => self.registers.b = self.registers.d,
                 0x43 => self.registers.b = self.registers.e,
@@ -1414,30 +1418,23 @@ impl CPU {
         let mem3 = self.memory.get(pc + 2);
         let mem4 = self.memory.get(pc + 3);
         format!(
-            "A:{:02X} F:{:02X} B:{:02X} C:{:02X} D:{:02X} E:{:02X} H:{:02X} L:{:02X} SP:{:04X} PC:{:04X} PCMEM:{:02X},{:02X},{:02X},{:02X}",
+            "A:{:02x} F:{:02x} B:{:02x} C:{:02x} D:{:02x} E:{:02x} H:{:02x} L:{:02x} SP:{:04x} PC:{:04x} PCMEM:{:02x},{:02x},{:02x},{:02x}",
             a, f, b, c, d, e, h, l, sp, pc, mem1, mem2, mem3, mem4
         )
     }
-    pub fn run(&mut self) {
-        let mut file = File::create("log.txt").unwrap();
-        while true {
-            //writeln!(file, "{}", self.gen_log()).unwrap();
-            self.update();
-        }
-    }
+    
     // runs one full cpu tick
     pub fn update(&mut self) {
         let cycles: u8;
-
+        // println!("{}", self.gen_log());
         // blargg debug
-        self.handle_blargg();
+        // self.handle_blargg();
 
         if !self.halt {
             cycles = self.execute_next_op();
         } else {
             cycles = 4;
         }
-        // println!("{}", self.gen_log());
         
         // tick timer
         let timer_int = self.motherboard.timer.borrow_mut().tick(cycles - self.motherboard.sync_cycles.get());
@@ -1451,21 +1448,11 @@ impl CPU {
         // reset cycle counters
         self.motherboard.sync_cycles.set(0);
         self.motherboard.cycles.set(0);
-
-        let i_enable = self.motherboard.i_enable.get();
-        let i_flag = self.motherboard.i_flag.get();
-        let i_master = self.motherboard.i_master.get();
-
-        // println!("i_enable: {i_enable:02x} i_flag: {i_flag:02x} i_master: {i_master}");
+        
         // Interrupt handling
         if self.check_interrupt() {
-            //println!("HERE!");
             self.halt = false;
         }
-        //  println!("LY: {}, LYC {}", self.motherboard.screen.borrow().LY, self.motherboard.screen.borrow().LYC);
-        // if self.halt {
-        //     process::exit(1);
-        // }
         
         if self.motherboard.screen.borrow().LY == 0 && self.motherboard.screen.borrow().LYC == 16 {
             process::exit(1);
@@ -1479,7 +1466,7 @@ impl CPU {
         self.i_queue = false;
     }
 
-    fn set_interrupt(&mut self, bit: u8) {
+    pub fn set_interrupt(&self, bit: u8) {
         let flag = 1 << bit;
         self.motherboard
             .i_flag

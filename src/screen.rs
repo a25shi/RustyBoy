@@ -24,6 +24,9 @@ pub struct Screen {
     pub OBP1: Palette,
     // Screen buffer
     pub screen_buffer: [u8; 160 * 144 * 3],
+    // Screen buffer color index
+    pub screen_buffer_color: [u8; 160 * 144],
+
     // tile cache
     pub tile_cache: TileCache,
     pub frame_done: bool,
@@ -52,6 +55,7 @@ impl Screen {
             OBP0: Palette::new(0xff),
             OBP1: Palette::new(0xff),
             screen_buffer: [0; 160 * 144 * 3],
+            screen_buffer_color: [0; 160 * 144],
             tile_cache: TileCache::new(),
             frame_done: false,
             motherboard: mb
@@ -183,16 +187,20 @@ impl Screen {
             _ => unreachable!()
         }
     }
-    fn set_pixel_color(&mut self, x: u8, y: u8, color: u8) {
+    fn set_pixel_color(&mut self, x: u8, y: u8, color: u8, color_index: u8) {
         let offset = (y as usize * 160 + x as usize) * 3;
+        // Sets screen buffer pixel color
         self.screen_buffer[offset] = color;
         self.screen_buffer[offset + 1] = color;
         self.screen_buffer[offset + 2] = color;
+        // Sets screen buffer color index
+        self.screen_buffer_color[offset / 3] = color_index;
     }
+
     fn draw_blank_scanline(&mut self) {
         for x in 0..160 {
             let color = self.BGP.get_color(0);
-            self.set_pixel_color(x, self.LY, color);
+            self.set_pixel_color(x, self.LY, color, 0);
         }
     }
     fn draw_scanline(&mut self) {
@@ -240,18 +248,18 @@ impl Screen {
 
             if xmask == 0 || x == xmaskeq {
                 tile_index = self.get_tile(x_pos, y_pos, offset);
+                //println!("{tile_index}");
                 self.tile_cache.update_tile(tile_index, &self.VRAM)
             }
             
             // This is with caching
             let color_index = self.tile_cache.tile_cache[tile_index * 64 + (y_pos % 8) * 8 + (x_pos % 8)];
             let color = self.BGP.get_color(color_index);
-            
             // This is without caching
             // tile_index = self.get_tile(x_pos, y_pos, offset);
             // let color = self.get_tile_bgp(tile_index, x_pos as usize, y_pos as usize);
             
-            self.set_pixel_color(x, self.LY, color);
+            self.set_pixel_color(x, self.LY, color, color_index);
         }
     }
     fn get_tile_bgp(&self, tile_index: usize, x: usize, y: usize) -> u8 {
@@ -312,6 +320,9 @@ impl Screen {
                 let yflip: bool = (attr >> 6) & 1 != 0;
                 let xflip: bool = (attr >> 5) & 1 != 0;
 
+                // Object priority bool
+                let prio: bool = (attr >> 7) & 1 != 0;
+
                 let mut line = self.LY - y;
                 if yflip {
                     line = spriteheight - line - 1;
@@ -325,6 +336,9 @@ impl Screen {
                 // for each 8 sprite pixels in the line
                 for i in 0..8 {
                     let mut index = i;
+                    // X pixel location
+                    let xpixel = 7 - i + sprite_x;
+
                     if xflip {
                         index = 7 - index;
                     }
@@ -332,7 +346,12 @@ impl Screen {
                     let mut color_index = ((byte2 >> index) & 1) << 1;
                     color_index |= (byte1 >> index) & 1;
                     let mut color: u8 = 0;
-
+                    
+                    // color index 0 is transparent on sprites
+                    if color_index == 0 {
+                        continue;
+                    }
+                    
                     // Get from obp1
                     if attr & 0b10000 != 0 {
                         color = self.OBP1.get_color(color_index);
@@ -341,15 +360,19 @@ impl Screen {
                     else {
                         color = self.OBP0.get_color(color_index);
                     }
-
-                    // if sprite is transparent
-                    if color == 0xff {
-                        continue;
+                    
+                    // If bg prio
+                    if prio {
+                        if self.screen_buffer_color[(self.LY * 160 + xpixel) as usize] == 0 {
+                            // set pixel color
+                            self.set_pixel_color(xpixel, self.LY, color, color_index);
+                        }
+                    } 
+                    // sprite shows regardless
+                    else {
+                        // set pixel color
+                        self.set_pixel_color(xpixel, self.LY, color, color_index);
                     }
-
-                    // set pixel color
-                    let xpixel = 7 - i + sprite_x;
-                    self.set_pixel_color(xpixel, self.LY, color);
                 }
             }
         }
@@ -366,13 +389,11 @@ impl Screen {
         }
         tile_index
     }
+    // Checks lyc == ly and triggers interrupt if needed
     fn check_lyc(&mut self) {
         let interrupt = self.STAT.update_lyc(self.LYC, self.LY);
-        // println!("Checking lyc == ly, LY {} LYC {}, interrupt {interrupt}", self.LY, self.LYC);
         if interrupt {
-            //println!("lyc interrupt");
             if let Some(motherboard_strong) = self.motherboard.upgrade() {
-                
                 motherboard_strong.set_interrupt(1);
             } else {
                 println!("Could not upgrade, motherboard does not exist??");
@@ -380,6 +401,7 @@ impl Screen {
         }
     }
 
+    // Sets mode and triggers interrupt if needed
     fn set_mode(&mut self, newmode: u8) {
         let interrupt = self.STAT.set_mode(newmode);
         if interrupt {

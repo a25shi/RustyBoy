@@ -2,6 +2,7 @@ use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use crate::screen::Screen;
 use crate::timer::Timer;
+use crate::joypad::Joypad;
 
 // Note: Since motherboard doesn't have any mutable fields, always borrow as non mut to access fields
 pub struct Motherboard {
@@ -11,11 +12,13 @@ pub struct Motherboard {
     pub cycles: Cell<u8>,
     pub sync_cycles: Cell<u8>,
     pub timer: RefCell<Timer>,
-    pub screen: RefCell<Screen>
+    pub screen: RefCell<Screen>,
+    pub joypad: RefCell<Joypad>
 }
 
 impl Motherboard {
     pub fn new() -> Rc<Self> {
+        // creates a cyclic reference with memory using weak pointer
         Rc::new_cyclic(|x| {Self {
             i_flag: Cell::new(0),
             i_enable: Cell::new(0),
@@ -23,9 +26,11 @@ impl Motherboard {
             sync_cycles: Cell::new(0),
             i_master: Cell::new(false),
             timer: RefCell::new(Timer::new()),
-            screen: RefCell::new(Screen::new(x.clone()))
+            screen: RefCell::new(Screen::new(x.clone())),
+            joypad: RefCell::new(Joypad::new())
         }})
     }
+    
     // sets interrupt flag
     pub fn set_interrupt(&self, bit: u8) {
         let flag = 1 << bit;

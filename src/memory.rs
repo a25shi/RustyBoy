@@ -123,7 +123,7 @@ impl Memory {
     fn io_read(&self, address: u16) -> u8 {
         match address {
             // joypad
-            0xff00 => {0xff}
+            0xff00 => self.motherboard.joypad.borrow().get_joypad(),
             // serial bus
             0xff01..=0xff02 => {
                 if address == 0xff01 {
@@ -157,7 +157,7 @@ impl Memory {
     fn io_write(&mut self, address: u16, value: u8) {
         match address {
             // joypad
-            0xff00 => {}
+            0xff00 => self.motherboard.joypad.borrow_mut().set_joypad(value),
             // serial bus
             0xff01..=0xff02 => {
                 if address == 0xff01 {
@@ -187,8 +187,7 @@ impl Memory {
                     let mut screen = self.motherboard.screen.borrow_mut();
                     let prev = screen.LCDC.lcd_enable;
                     screen.LCDC.set(value);
-                    //println!("writing value {value:02x} to lcdc");
-                    //println!("LCDC value {:02x}", screen.LCDC.value);
+
                     // If screen is on then turned off
                     if prev && !screen.LCDC.lcd_enable {
                         screen.scan_counter = 0;
@@ -196,7 +195,6 @@ impl Memory {
                         if inter {
                             self.motherboard.set_interrupt(1);
                         }
-                        //println!("SETTING LY to 0");
                         screen.LY = 0;
                     }
                 }

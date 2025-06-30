@@ -6,11 +6,13 @@ pub struct Palette {
 }
 impl Palette {
     pub fn new(value: u8) -> Self {
-        Self {
-            value,
+        let mut this = Self {
+            value: 0,
             lookup: [0; 4],
             palette: [0xFF, 0x99, 0x55, 0x00],
-        }
+        };
+        this.set(value);
+        this
     }
     pub fn set(&mut self, value: u8) -> bool {
         if self.value == value {
@@ -25,7 +27,6 @@ impl Palette {
     pub fn get(&self) -> u8 {
         self.value
     }
-
     pub fn get_color(&self, index: u8) -> u8 {
         self.lookup[index as usize]
     }
@@ -128,6 +129,7 @@ impl STAT {
     }
 }
 
+// Tile cache for bg for now
 pub struct TileCache {
     tile_state: [bool; 384], // checks which tiles are cached
     pub tile_cache: [u8; 384 * 8 * 8] // tile cache
