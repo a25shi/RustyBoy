@@ -187,20 +187,24 @@ impl Screen {
             _ => unreachable!()
         }
     }
-    fn set_pixel_color(&mut self, x: u8, y: u8, color: u8, color_index: u8) {
+    fn set_pixel_color(&mut self, x: u8, y: u8, color: u8, color_index: Option<u8>) {
         let offset = (y as usize * 160 + x as usize) * 3;
         // Sets screen buffer pixel color
         self.screen_buffer[offset] = color;
         self.screen_buffer[offset + 1] = color;
         self.screen_buffer[offset + 2] = color;
-        // Sets screen buffer color index
-        self.screen_buffer_color[offset / 3] = color_index;
+        // Sets screen buffer color index, skips if set to none ( For sprites )
+        match color_index {
+            Some(index) => {
+                self.screen_buffer_color[y as usize * 160 + x as usize] = index;
+            },
+            None => {}
+        }
     }
-
     fn draw_blank_scanline(&mut self) {
         for x in 0..160 {
             let color = self.BGP.get_color(0);
-            self.set_pixel_color(x, self.LY, color, 0);
+            self.set_pixel_color(x, self.LY, color, Some(0));
         }
     }
     fn draw_scanline(&mut self) {
@@ -259,9 +263,10 @@ impl Screen {
             // tile_index = self.get_tile(x_pos, y_pos, offset);
             // let color = self.get_tile_bgp(tile_index, x_pos as usize, y_pos as usize);
             
-            self.set_pixel_color(x, self.LY, color, color_index);
+            self.set_pixel_color(x, self.LY, color, Some(color_index));
         }
     }
+    
     fn get_tile_bgp(&self, tile_index: usize, x: usize, y: usize) -> u8 {
         let line = 2 * (y % 8);
         let pixel_index = 7 - (x % 8);
@@ -273,6 +278,7 @@ impl Screen {
         col_index |= (byte1 >> pixel_index) & 1;
         self.BGP.get_color(col_index)
     }
+    
     fn draw_sprite_scanline(&mut self) {
         let spriteheight = if self.LCDC.sprite_height { 16 } else { 8 };
         let mut spritecount = 0;
@@ -346,12 +352,12 @@ impl Screen {
                     let mut color_index = ((byte2 >> index) & 1) << 1;
                     color_index |= (byte1 >> index) & 1;
                     let mut color: u8 = 0;
-                    
+
                     // color index 0 is transparent on sprites
                     if color_index == 0 {
                         continue;
                     }
-                    
+
                     // Get from obp1
                     if attr & 0b10000 != 0 {
                         color = self.OBP1.get_color(color_index);
@@ -360,18 +366,18 @@ impl Screen {
                     else {
                         color = self.OBP0.get_color(color_index);
                     }
-                    
+
                     // If bg prio
                     if prio {
-                        if self.screen_buffer_color[(self.LY * 160 + xpixel) as usize] == 0 {
+                        if self.screen_buffer_color[self.LY as usize * 160 + xpixel as usize] == 0 {
                             // set pixel color
-                            self.set_pixel_color(xpixel, self.LY, color, color_index);
+                            self.set_pixel_color(xpixel, self.LY, color, None);
                         }
-                    } 
-                    // sprite shows regardless
+                    }
+                    //sprite shows regardless
                     else {
                         // set pixel color
-                        self.set_pixel_color(xpixel, self.LY, color, color_index);
+                        self.set_pixel_color(xpixel, self.LY, color, None);
                     }
                 }
             }

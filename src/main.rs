@@ -8,20 +8,19 @@ mod screen;
 mod joypad;
 
 use std::fs;
-use std::any::type_name;
-use std::fmt::format;
 use std::time::{Duration, Instant};
 use sdl2::event::Event;
 use sdl2::image::LoadSurface;
 use sdl2::keyboard::Keycode;
 use sdl2::pixels::PixelFormatEnum;
 use sdl2::surface::Surface;
+use sdl2::video::Window;
 use crate::cpu::CPU;
 
 fn main() {
     // let file: &str = "./roms/blargg tests/cpu_instrs/individual/01-special.gb";
     // Getting cartridge header data and game data
-    let bytes: Vec<u8> = fs::read("./roms/kirby.gb").unwrap();
+    let bytes: Vec<u8> = fs::read("./roms/dmg-acid2.gb").unwrap();
     let header = cartridge_header::CartridgeHeader::from_bytes(&bytes);
     println!("{:?}", header);
 
@@ -36,13 +35,13 @@ fn main() {
         .build()
         .unwrap();
     let mut canvas = window.into_canvas().build().unwrap();
-    
+
     // Icon for application
     let icon_surface = Surface::from_file("icon.png").unwrap();
     canvas.window_mut().set_icon(icon_surface);
-    
+
     // autoscaling canvas
-    canvas.set_logical_size(640, 576).unwrap();
+    // canvas.set_logical_size(640, 576).unwrap();
     let texture_creator = canvas.texture_creator();
 
     // create texture
@@ -61,7 +60,7 @@ fn main() {
     let mut frame_count = 0;
 
     let mut frame_count_time = Instant::now();
-    
+
     // main loop
     'running: loop {
         // Grab joypad lock
@@ -123,7 +122,7 @@ fn main() {
 
         // Run cpu for 1 tick
         cpu.update();
-        
+
         // Borrow screen
         let mut screen = cpu.motherboard.screen.borrow_mut();
 
@@ -150,14 +149,13 @@ fn main() {
 
             // pitch is width * 3 (RGB)
             texture.update(None, &screen.screen_buffer, 160 * 3).unwrap();
-            
+
             // Clear canvas an apply texture
             canvas.clear();
             canvas.copy(&texture, None, None).expect("Cannot render texture");
             canvas.present();
-            
+
             last_render = Instant::now();
         }
     }
-
 }

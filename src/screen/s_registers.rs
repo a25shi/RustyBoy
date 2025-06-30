@@ -9,7 +9,7 @@ impl Palette {
         let mut this = Self {
             value: 0,
             lookup: [0; 4],
-            palette: [0xFF, 0x99, 0x55, 0x00],
+            palette: [0xFF, 0xAA, 0x55, 0x00],
         };
         this.set(value);
         this
