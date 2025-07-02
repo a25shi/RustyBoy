@@ -22,8 +22,8 @@ pub struct Screen {
     pub BGP: Palette,
     pub OBP0: Palette,
     pub OBP1: Palette,
-    // Screen buffer
-    pub screen_buffer: [u8; 160 * 144 * 3],
+    // Screen buffer RGBA
+    pub screen_buffer: Vec<u8>,
     // Screen buffer color index
     pub screen_buffer_color: [u8; 160 * 144],
 
@@ -54,7 +54,8 @@ impl Screen {
             BGP: Palette::new(0xfc),
             OBP0: Palette::new(0xff),
             OBP1: Palette::new(0xff),
-            screen_buffer: [0; 160 * 144 * 3],
+            // RGBA
+            screen_buffer: [0; 160 * 144 * 4].to_vec(),
             screen_buffer_color: [0; 160 * 144],
             tile_cache: TileCache::new(),
             frame_done: false,
@@ -188,11 +189,15 @@ impl Screen {
         }
     }
     fn set_pixel_color(&mut self, x: u8, y: u8, color: u8, color_index: Option<u8>) {
-        let offset = (y as usize * 160 + x as usize) * 3;
+        let offset = (y as usize * 160 + x as usize) * 4;
         // Sets screen buffer pixel color
+        // RGB
         self.screen_buffer[offset] = color;
         self.screen_buffer[offset + 1] = color;
         self.screen_buffer[offset + 2] = color;
+        // A
+        self.screen_buffer[offset + 3] = 255;
+        
         // Sets screen buffer color index, skips if set to none ( For sprites )
         match color_index {
             Some(index) => {

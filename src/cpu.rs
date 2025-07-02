@@ -1423,8 +1423,15 @@ impl CPU {
         )
     }
     
+    // runs for one full frame
+    pub fn run_one_frame(&mut self) {
+        let mut c_cycles: usize = 0;
+        while c_cycles < 69905 {
+            c_cycles += self.update() as usize;
+        }
+    }
     // runs one full cpu tick
-    pub fn update(&mut self) {
+    pub fn update(&mut self) -> u8 {
         let cycles: u8;
         // println!("{}", self.gen_log());
         // blargg debug
@@ -1464,6 +1471,8 @@ impl CPU {
         }
 
         self.i_queue = false;
+        
+        cycles
     }
 
     pub fn set_interrupt(&self, bit: u8) {
