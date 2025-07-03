@@ -43,6 +43,10 @@ Written in Rust, utilizing SDL2 for display rendering and egui for interface.
 
 \* need GBC support, RustyBoy is DMG only.
 
+### Dmg-acid2 👍
+![image](https://github.com/user-attachments/assets/6669e4a2-b36b-4f9f-be84-066817ae03d5)
+
+
 ## Planned Features
 
 - Sound
