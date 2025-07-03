@@ -1,38 +1,24 @@
-mod cartridge;
-mod cartridge_header;
-mod cpu;
-mod joypad;
-mod memory;
-mod motherboard;
-mod screen;
-mod timer;
+mod rusty_boy;
 
-use crate::cpu::CPU;
-use egui_sdl2_gl::{gl, DpiScaling, ShaderVersion};
 use std::fs;
-use std::sync::Arc;
+use egui_sdl2_gl::{gl, DpiScaling, ShaderVersion};
 use std::time::{Duration, Instant};
-use egui::{vec2, Checkbox, Context, FullOutput, Image};
+use egui::{vec2, Checkbox, Context, Direction, FullOutput, Image};
 use egui::load::SizedTexture;
 use sdl2::event::Event;
 use sdl2::image::LoadSurface;
 use sdl2::keyboard::Keycode;
 use sdl2::surface::Surface;
 use sdl2::video::{GLProfile, SwapInterval};
-
+use crate::rusty_boy::RustyBoy;
 
 fn main() {
     // Gameboy size constant
     let gb_width = 160;
     let gb_height = 144;
 
-    // let file: &str = "./roms/blargg tests/cpu_instrs/individual/01-special.gb";
-    // Getting cartridge header data and game data
-    let bytes: Vec<u8> = fs::read("./roms/kirby.gb").unwrap();
-    let header = cartridge_header::CartridgeHeader::from_bytes(&bytes);
-    let mut cpu = CPU::new(bytes);
-    
-    println!("{:?}", header);
+    // init gameboy 
+    let mut rusty = RustyBoy::new();
     
     // sdl context stuff
     let sdl_context = sdl2::init().unwrap();
@@ -48,7 +34,7 @@ fn main() {
         .window(
             "RustyBoy",
             500,
-            450,
+            480,
         )
         .opengl()
         .build()
@@ -75,61 +61,36 @@ fn main() {
     let egui_ctx = egui::Context::default();
     let mut event_pump = sdl_context.event_pump().unwrap();
     
-    // set screen buffer
-    let mut screen_buffer = cpu.motherboard.screen.borrow().screen_buffer.clone();
+    // set screen buffer placeholder
+    let mut screen_buffer = rusty.update_and_render();
 
     // texture
     let gb_texture = painter.new_user_texture_rgba8((gb_width, gb_height), screen_buffer, false);
     let start_time = Instant::now();
-    
+
     // counter 
     let mut counter = 0;
     let mut frame_counter = Instant::now();
+
+    // frame
+    let my_frame = egui::containers::Frame::new().fill(egui::Color32::DARK_GRAY);
     
     // egui automatically runs at 60 fps
     'running: loop {
-        // Handle events
-        let mut joypad = cpu.motherboard.joypad.borrow_mut();
-        let mut interrupt = false;
         for event in event_pump.poll_iter() {
             match event {
                 Event::Quit { .. } => break 'running,
                 Event::KeyDown { keycode, .. } => {
                     match keycode {
-                        // WASD up left down right
-                        Some(Keycode::W) => interrupt = joypad.handle_input(2, false),
-                        Some(Keycode::A) => interrupt = joypad.handle_input(1, false),
-                        Some(Keycode::S) => interrupt = joypad.handle_input(3, false),
-                        Some(Keycode::D) => interrupt = joypad.handle_input(0, false),
-                        // A
-                        Some(Keycode::K) => interrupt = joypad.handle_input(4, false),
-                        // B
-                        Some(Keycode::L) => interrupt = joypad.handle_input(5, false),
-                        // Select
-                        Some(Keycode::I) => interrupt = joypad.handle_input(6, false),
-                        // Start
-                        Some(Keycode::O) => interrupt = joypad.handle_input(7, false),
                         // Escape to quit
                         Some(Keycode::ESCAPE) => break 'running,
-                        _ => {}
+                        _ => rusty.handle_events(keycode, false)
                     }
                 }
                 Event::KeyUp { keycode, .. } => {
                     match keycode {
                         // WASD up left down right
-                        Some(Keycode::W) => interrupt = joypad.handle_input(2, true),
-                        Some(Keycode::A) => interrupt = joypad.handle_input(1, true),
-                        Some(Keycode::S) => interrupt = joypad.handle_input(3, true),
-                        Some(Keycode::D) => interrupt = joypad.handle_input(0, true),
-                        // A
-                        Some(Keycode::K) => interrupt = joypad.handle_input(4, true),
-                        // B
-                        Some(Keycode::L) => interrupt = joypad.handle_input(5, true),
-                        // Select
-                        Some(Keycode::I) => interrupt = joypad.handle_input(6, true),
-                        // Start
-                        Some(Keycode::O) => interrupt = joypad.handle_input(7, true),
-                        _ => {}
+                        _ => rusty.handle_events(keycode, true)
                     }
                 }
                 _ => {
@@ -137,24 +98,17 @@ fn main() {
                     egui_state.process_input(&window, event, &mut painter);
                 }
             }
-            if interrupt {
-                cpu.set_interrupt(4);
-            }
         }
-        // Drop joypad mut
-        drop(joypad);
-
-        // run emulator for one frame
-        cpu.run_one_frame();
-        screen_buffer = cpu.motherboard.screen.borrow().screen_buffer.clone();
+        
+        screen_buffer = rusty.update_and_render();
 
         //fps check
         counter += 1;
-        
+
         // Set fps counter in window
         if frame_counter.elapsed() >= Duration::from_secs(1) {
             let fps = counter as f64 / frame_counter.elapsed().as_secs_f64();
-            window.set_title(&format!("RustyBoy FPS:{}", fps)).unwrap();
+            window.set_title(&format!("RustyBoy FPS: {:.2}", fps)).unwrap();
             // reset frame count
             counter = 0;
             frame_counter = Instant::now();
@@ -171,12 +125,27 @@ fn main() {
         
         // update screen buffer
         painter.update_user_texture_rgba8_data(gb_texture, screen_buffer);
-        
-        // add image to gui
-        egui::CentralPanel::default().show(&egui_ctx, |ui| {
-            
-            ui.add(Image::new(SizedTexture::new(gb_texture, vec2((gb_width * 3) as f32, (gb_height * 3) as f32))))
-        });
+
+        // GUI layout
+        egui::CentralPanel::default().frame(my_frame)
+            .show(&egui_ctx, |ui| {
+                ui.add_space(5.0);
+                ui.columns(5, |col| {
+                    col[0].vertical_centered(|ui| {
+                        if ui.add_sized([80.0, 20.0], egui::Button::new("Load ROM")).clicked() {
+                            if let Some(path) = rfd::FileDialog::new().pick_file() {
+                                rusty.load_rom(path);
+                            }
+                        }
+                    })
+                });
+                ui.end_row();
+                ui.add(egui::Separator::default().spacing(5.0));
+                ui.with_layout(egui::Layout::centered_and_justified(Direction::LeftToRight), |ui| {
+                    // Actual emulator screen
+                    ui.add(Image::new(SizedTexture::new(gb_texture, vec2((gb_width * 3) as f32, (gb_height * 3) as f32))))
+                });
+            });
 
         let FullOutput {
             platform_output,
@@ -186,17 +155,10 @@ fn main() {
             viewport_output,
         } = egui_ctx.end_pass();
 
-        // render gui to window
+        // process output to egui
         egui_state.process_output(&window, &platform_output);
-
-        // For default dpi scaling only, Update window when the size of resized window is very small (to avoid egui::CentralPanel distortions).
-        // if egui_ctx.used_size() != painter.screen_rect.size() {
-        //     println!("resized.");
-        //     let _size = egui_ctx.used_size();
-        //     let (w, h) = (_size.x as u32, _size.y as u32);
-        //     window.set_size(w, h).unwrap();
-        // }
-
+        
+        // render egui
         let paint_jobs = egui_ctx.tessellate(shapes, pixels_per_point);
         painter.paint_jobs(None, textures_delta, paint_jobs);
         window.gl_swap_window();

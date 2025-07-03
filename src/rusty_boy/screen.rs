@@ -1,7 +1,7 @@
-use crate::screen::s_registers::{Palette, TileCache, LCDC, STAT};
+use crate::rusty_boy::screen::s_registers::{Palette, TileCache, LCDC, STAT};
 use std::collections::BTreeMap;
 use std::rc::Weak;
-use crate::motherboard::Motherboard;
+use crate::rusty_boy::motherboard::Motherboard;
 
 mod s_registers;
 

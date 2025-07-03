@@ -1,7 +1,7 @@
 use std::rc::{Rc};
 use multi_compare::c;
-use crate::cartridge::Cartridge;
-use crate::motherboard::Motherboard;
+use crate::rusty_boy::cartridge::Cartridge;
+use crate::rusty_boy::motherboard::Motherboard;
 
 pub struct Memory {
     pub cartridge: Cartridge,

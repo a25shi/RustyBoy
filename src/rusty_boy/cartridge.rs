@@ -1,5 +1,4 @@
-
-use crate::cartridge_header::CartridgeHeader;
+use crate::rusty_boy::cartridge_header::CartridgeHeader;
 use multi_compare::c;
 
 

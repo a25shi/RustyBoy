@@ -1,8 +1,8 @@
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
-use crate::screen::Screen;
-use crate::timer::Timer;
-use crate::joypad::Joypad;
+use crate::rusty_boy::screen::Screen;
+use crate::rusty_boy::timer::Timer;
+use crate::rusty_boy::joypad::Joypad;
 
 // Note: Since motherboard doesn't have any mutable fields, always borrow as non mut to access fields
 pub struct Motherboard {

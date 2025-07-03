@@ -1,6 +1,6 @@
 mod registers;
-use crate::memory::Memory;
-use crate::motherboard::Motherboard;
+use crate::rusty_boy::memory::Memory;
+use crate::rusty_boy::motherboard::Motherboard;
 use registers::Registers;
 use serde_json::Value;
 use std::{fs, process};
@@ -20,7 +20,7 @@ pub struct CPU {
 
 impl CPU {
     pub fn new(rom_file: Vec<u8>) -> Self {
-        let opcodedata = fs::read_to_string("./src/opcodes/Opcodes.json").unwrap();
+        let opcodedata = fs::read_to_string("./src/rusty_boy/opcodes/Opcodes.json").unwrap();
         // let rom: Vec<u8> = fs::read(rom_file).unwrap();
         let mobo = Motherboard::new();
         // Initialize self
