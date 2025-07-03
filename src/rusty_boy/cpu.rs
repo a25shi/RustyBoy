@@ -870,7 +870,7 @@ impl CPU {
                         return Ok(cycles[1].as_u64().unwrap() as u8);
                     }
                 }
-                0xcb => unreachable!(),
+                0xcb => {},
                 0xcc => {
                     if self.registers.get_flag("z")? {
                         self.call(value);
@@ -909,7 +909,7 @@ impl CPU {
                         return Ok(cycles[1].as_u64().unwrap() as u8);
                     }
                 }
-                0xd3 => unreachable!(),
+                0xd3 => {},
                 0xd4 => {
                     if !self.registers.get_flag("c")? {
                         self.call(value);
@@ -949,7 +949,7 @@ impl CPU {
                         return Ok(cycles[1].as_u64().unwrap() as u8);
                     }
                 }
-                0xdb => unreachable!(),
+                0xdb => {},
                 0xdc => {
                     if self.registers.get_flag("c")? {
                         self.call(value);
@@ -957,7 +957,7 @@ impl CPU {
                         return Ok(cycles[1].as_u64().unwrap() as u8);
                     }
                 }
-                0xdd => unreachable!(),
+                0xdd => {},
                 0xde => {
                     let val = self.registers.a as i16;
                     let carry = self.registers.get_flag("c")? as i16;
@@ -983,8 +983,8 @@ impl CPU {
                     let ptr = self.registers.c as u16;
                     self.memory.set(ptr + 0xff00, self.registers.a);
                 }
-                0xe3 => unreachable!(),
-                0xe4 => unreachable!(),
+                0xe3 => {},
+                0xe4 => {},
                 0xe5 => self.push_reg("hl"),
                 0xe6 => {
                     self.registers.a &= value as u8;
@@ -1018,9 +1018,9 @@ impl CPU {
                     self.motherboard.cycles.set(self.motherboard.cycles.get() + 8);
                     self.memory.set(value, self.registers.a)
                 },
-                0xeb => unreachable!(),
-                0xec => unreachable!(),
-                0xed => unreachable!(),
+                0xeb => {},
+                0xec => {},
+                0xed => {},
                 0xee => {
                     self.registers.a ^= value as u8;
                     self.registers.set_flag("z", self.registers.a == 0)?;
@@ -1039,7 +1039,7 @@ impl CPU {
                 }
                 0xf2 => self.registers.a = self.memory.get(self.registers.c as u16 + 0xff00),
                 0xf3 => self.motherboard.i_master.set(false),
-                0xf4 => unreachable!(),
+                0xf4 => {},
                 0xf5 => {
                     self.registers.f &= 0xf0;
                     self.push_reg("af");
@@ -1076,8 +1076,8 @@ impl CPU {
                     self.registers.a = self.memory.get(value) 
                 },
                 0xfb => self.motherboard.i_master.set(true),
-                0xfc => unreachable!(),
-                0xfd => unreachable!(),
+                0xfc => {},
+                0xfd => {},
                 0xfe => {
                     self.registers
                         .set_flag("z", self.registers.a == value as u8)?;
@@ -1355,7 +1355,8 @@ impl CPU {
         }
         Ok(cycles[0].as_u64().unwrap() as u8)
     }
-
+    
+    // Execute next opcode
     fn execute_next_op(&mut self) -> u8 {
         let address: u16 = self.registers.pc;
         let (new_address, opcode, bytes, cycles, cb) = self.decode(address);
@@ -1425,9 +1426,14 @@ impl CPU {
     
     // runs for one full frame
     pub fn run_one_frame(&mut self) {
-        let mut c_cycles: usize = 0;
-        while c_cycles < 69905 {
-            c_cycles += self.update() as usize;
+        //  let mut c_cycles: usize = 0;
+        while !self.motherboard.screen.borrow().frame_done {
+            self.update();
+            
+            if self.motherboard.screen.borrow().frame_done {
+                self.motherboard.screen.borrow_mut().frame_done = false;
+                break;
+            }
         }
     }
     // runs one full cpu tick

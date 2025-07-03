@@ -77,6 +77,7 @@ fn main() {
     
     // egui automatically runs at 60 fps
     'running: loop {
+        // handle events
         for event in event_pump.poll_iter() {
             match event {
                 Event::Quit { .. } => break 'running,

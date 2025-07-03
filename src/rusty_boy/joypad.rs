@@ -42,7 +42,7 @@ impl Joypad {
     pub fn get_joypad(&self) -> u8 {
         self.value
     }
-    
+
     // sets joypad, depending on which button or dpad selected
     pub fn set_joypad(&mut self, mut value: u8) {
         let buttons = ((value >> 5) & 1) != 0;
