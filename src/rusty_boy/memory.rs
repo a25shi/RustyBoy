@@ -185,17 +185,17 @@ impl Memory {
                 // LCDC set 
                 if address == 0xff40 {
                     let mut screen = self.motherboard.screen.borrow_mut();
-                    let prev = screen.LCDC.lcd_enable;
-                    screen.LCDC.set(value);
+                    let prev = screen.lcdc.lcd_enable;
+                    screen.lcdc.set(value);
 
                     // If screen is on then turned off
-                    if prev && !screen.LCDC.lcd_enable {
+                    if prev && !screen.lcdc.lcd_enable {
                         screen.scan_counter = 0;
-                        let inter = screen.STAT.set_mode(0);
+                        let inter = screen.stat.set_mode(0);
                         if inter {
                             self.motherboard.set_interrupt(1);
                         }
-                        screen.LY = 0;
+                        screen.ly = 0;
                     }
                 }
                 // DMA

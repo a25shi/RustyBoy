@@ -1,9 +1,8 @@
 mod rusty_boy;
 
-use std::fs;
 use egui_sdl2_gl::{gl, DpiScaling, ShaderVersion};
 use std::time::{Duration, Instant};
-use egui::{vec2, Checkbox, Context, Direction, FullOutput, Image};
+use egui::{vec2, Direction, FullOutput, Image};
 use egui::load::SizedTexture;
 use sdl2::event::Event;
 use sdl2::image::LoadSurface;

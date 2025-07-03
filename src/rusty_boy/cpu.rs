@@ -4,9 +4,7 @@ use crate::rusty_boy::motherboard::Motherboard;
 use registers::Registers;
 use serde_json::Value;
 use std::{fs, process};
-use std::fs::File;
 use std::rc::Rc;
-use sdl2::libc::exit;
 
 pub struct CPU {
     pub registers: Registers,
@@ -216,7 +214,6 @@ impl CPU {
     // u8 reg <- u16 reg ptr
     fn ld_from_ptr(&mut self, reg: &str, ptrreg: &str) {
         let ptr = self.registers.get_u16_reg(ptrreg).unwrap();
-        let mut val = false;
         self.registers
             .set_u8_reg(reg, self.memory.get(ptr))
             .unwrap();
@@ -1467,7 +1464,7 @@ impl CPU {
             self.halt = false;
         }
         
-        if self.motherboard.screen.borrow().LY == 0 && self.motherboard.screen.borrow().LYC == 16 {
+        if self.motherboard.screen.borrow().ly == 0 && self.motherboard.screen.borrow().lyc == 16 {
             process::exit(1);
         }
 
@@ -1489,11 +1486,6 @@ impl CPU {
     }
 
     fn check_interrupt(&mut self) -> bool {
-        let i_enable = self.motherboard.i_enable.get();
-        let i_flag = self.motherboard.i_flag.get();
-        let i_master = self.motherboard.i_master.get();
-        
-        // println!("i_enable: {i_enable:02x} i_flag: {i_flag:02x} i_master: {i_master}");
         let total =
             (self.motherboard.i_enable.get() & 0b11111) & (self.motherboard.i_flag.get() & 0b11111);
         if total != 0 {

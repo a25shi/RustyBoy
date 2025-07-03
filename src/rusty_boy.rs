@@ -1,6 +1,6 @@
 use crate::rusty_boy::cpu::CPU;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::{PathBuf};
 use sdl2::keyboard::Keycode;
 mod cartridge;
 mod cartridge_header;

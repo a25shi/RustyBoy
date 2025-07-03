@@ -34,7 +34,7 @@ impl Joypad {
     
     // sets joypad bit
     fn set_joypad_bit(&mut self, bit: u8) -> bool {
-        self.joypad |= (1 << bit);
+        self.joypad |= 1 << bit;
         false
     }
     
