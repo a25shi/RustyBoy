@@ -15,6 +15,10 @@ Written in Rust, utilizing SDL2 for display rendering and egui for interface.
 4. Run the emulator with `cargo run --release`
 5. Load the desired ROM using the "Load ROM" button
 
+### Supported MBC Types
+The emulator currently supports GameBoy games that use:
+1. MBC0
+2. MBC1
 
 ### Keybinds
 | Joypad | Keyboard |
