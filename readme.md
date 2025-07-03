@@ -3,7 +3,7 @@
 # RustyBoy
 A functioning **Game Boy** emulator.
 
-Written in Rust, utilizing SDL2 for display rendering.
+Written in Rust, utilizing SDL2 for display rendering and egui for interface.
 
 
 ## Getting Started
@@ -12,8 +12,9 @@ Written in Rust, utilizing SDL2 for display rendering.
 1.  Follow the installation of Rust here: https://www.rust-lang.org/tools/install
 2.  Clone or download the repository
 3. Open into the RustyBoy folder and run the command `cargo build --release` to build the application
-4. Run the emulator with your desired ROM with `cargo run --release ./path-to-rom`
-> Make sure that the rom is placed in the correct path relative to the RustyBoy folder
+4. Run the emulator with `cargo run --release`
+5. Load the desired ROM using the "Load ROM" button
+
 
 ### Keybinds
 | Joypad | Keyboard |

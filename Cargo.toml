@@ -6,17 +6,12 @@ edition = "2024"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-eframe = "0.31.1"
 egui = "0.31.1"
-egui_extras = "0.31.1"
 egui_sdl2_gl = "0.31.0"
-image = "0.25.6"
 multi_compare = "0.1.0"
 rfd = "0.15.3"
 sdl2 = { version = "0.37.0", features = ["image"], default-features = false}
-serde = "1.0.219"
 serde_json = "1.0.140"
-
 
 [profile.dev]
 overflow-checks = false
