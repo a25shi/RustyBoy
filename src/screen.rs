@@ -289,11 +289,13 @@ impl Screen {
         let mut spritecount = 0;
         let mut spritemap: BTreeMap<u8, Vec<usize>> = BTreeMap::new();
         for n in (0..0xa0).step_by(4) {
-            let y = self.OAM[n] - 16;
+            // Init as signed to avoid overflow comparisons
+            let y = self.OAM[n] as i32 - 16;
+            let ly = self.LY as i32;
             let x = self.OAM[n + 1] - 8;
-
             // within sprite range
-            if (self.LY < y + spriteheight && self.LY >= y) {
+            
+            if ly < y + spriteheight && ly >= y {
                 // insert sprite into bst to sort
                 match spritemap.get_mut(&x) {
                     // If the vec exists, append at the end
@@ -335,8 +337,9 @@ impl Screen {
                 let prio: bool = (attr >> 7) & 1 != 0;
 
                 let mut line = self.LY - y;
+                
                 if yflip {
-                    line = spriteheight - line - 1;
+                    line = spriteheight as u8 - line - 1;
                 }
                 line *= 2;
 
@@ -356,8 +359,8 @@ impl Screen {
 
                     let mut color_index = ((byte2 >> index) & 1) << 1;
                     color_index |= (byte1 >> index) & 1;
+                    
                     let mut color: u8 = 0;
-
                     // color index 0 is transparent on sprites
                     if color_index == 0 {
                         continue;
@@ -371,7 +374,7 @@ impl Screen {
                     else {
                         color = self.OBP0.get_color(color_index);
                     }
-
+                    
                     // If bg prio
                     if prio {
                         if self.screen_buffer_color[self.LY as usize * 160 + xpixel as usize] == 0 {

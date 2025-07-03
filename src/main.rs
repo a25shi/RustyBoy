@@ -28,7 +28,7 @@ fn main() {
 
     // let file: &str = "./roms/blargg tests/cpu_instrs/individual/01-special.gb";
     // Getting cartridge header data and game data
-    let bytes: Vec<u8> = fs::read("./roms/super mario.gb").unwrap();
+    let bytes: Vec<u8> = fs::read("./roms/kirby.gb").unwrap();
     let header = cartridge_header::CartridgeHeader::from_bytes(&bytes);
     let mut cpu = CPU::new(bytes);
     
@@ -143,17 +143,18 @@ fn main() {
         }
         // Drop joypad mut
         drop(joypad);
-        
+
         // run emulator for one frame
         cpu.run_one_frame();
         screen_buffer = cpu.motherboard.screen.borrow().screen_buffer.clone();
 
         //fps check
         counter += 1;
-
+        
+        // Set fps counter in window
         if frame_counter.elapsed() >= Duration::from_secs(1) {
             let fps = counter as f64 / frame_counter.elapsed().as_secs_f64();
-            println!("{:.2}", fps);
+            window.set_title(&format!("RustyBoy FPS:{}", fps)).unwrap();
             // reset frame count
             counter = 0;
             frame_counter = Instant::now();
@@ -173,6 +174,7 @@ fn main() {
         
         // add image to gui
         egui::CentralPanel::default().show(&egui_ctx, |ui| {
+            
             ui.add(Image::new(SizedTexture::new(gb_texture, vec2((gb_width * 3) as f32, (gb_height * 3) as f32))))
         });
 
