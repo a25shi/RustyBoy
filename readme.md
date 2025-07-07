@@ -8,13 +8,16 @@ Written in Rust, utilizing SDL2 for display rendering and egui for interface.
 
 ## Getting Started
 
+### Requirements 
+1. Follow the instructions for the installation of Rust here: https://www.rust-lang.org/tools/install
+2. Follow the instructions for the installation of CMake here: https://cmake.org/download/
+3. Follow the instructions for the installation of SDL2 here: https://wiki.libsdl.org/SDL2/Installation
+
 ### Installation and Compilation
-1.  Follow the installation of Rust here: https://www.rust-lang.org/tools/install
-2.  Follow the installation of CMake here (if you don't already have it): https://cmake.org/download/
-3.  Clone or download the repository
-4. Open into the RustyBoy folder and run the command `cargo build --release` to build the application
-5. Run the emulator with `cargo run --release`
-6. Load the desired ROM using the "Load ROM" button
+1.  Clone or download the repository
+2. Open into the RustyBoy folder and run the command `cargo build --release` to build the application
+3. Run the emulator with `cargo run --release`
+4. Load the desired ROM using the "Load ROM" button
 
 ### Supported MBC Types
 The emulator currently supports GameBoy games that use:
