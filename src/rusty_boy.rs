@@ -1,15 +1,15 @@
 use crate::rusty_boy::cpu::CPU;
 use std::fs;
-use std::path::{PathBuf};
+use std::path::PathBuf;
 use sdl2::keyboard::Keycode;
 mod cartridge;
-mod cartridge_header;
 mod cpu;
 mod joypad;
 mod memory;
 mod motherboard;
 mod screen;
 mod timer;
+mod sound;
 
 pub struct RustyBoy {
     cpu: Option<CPU>

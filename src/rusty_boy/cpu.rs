@@ -1400,6 +1400,8 @@ impl CPU {
             (address, opcode, bytes as u8, cycles.clone(), cb)
         }
     }
+    
+    // logs the current registers
     pub fn gen_log(&self) -> String {
         let a = self.registers.a;
         let f = self.registers.f;
@@ -1423,16 +1425,17 @@ impl CPU {
     
     // runs for one full frame
     pub fn run_one_frame(&mut self) {
-        //  let mut c_cycles: usize = 0;
-        while !self.motherboard.screen.borrow().frame_done {
+        // loop until a frame is finished
+        loop {
             self.update();
-            
+
             if self.motherboard.screen.borrow().frame_done {
                 self.motherboard.screen.borrow_mut().frame_done = false;
                 break;
             }
         }
     }
+    
     // runs one full cpu tick
     pub fn update(&mut self) -> u8 {
         let cycles: u8;
@@ -1462,10 +1465,6 @@ impl CPU {
         // Interrupt handling
         if self.check_interrupt() {
             self.halt = false;
-        }
-        
-        if self.motherboard.screen.borrow().ly == 0 && self.motherboard.screen.borrow().lyc == 16 {
-            process::exit(1);
         }
 
         if self.halt && self.i_queue {

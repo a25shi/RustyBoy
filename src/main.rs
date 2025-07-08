@@ -52,14 +52,15 @@ fn main() {
             error
         );
     };
-    
+
     // Init egui stuff
     let shader_ver = ShaderVersion::Default;
     let (mut painter, mut egui_state) =
         egui_sdl2_gl::with_sdl2(&window, shader_ver, DpiScaling::Default);
     let egui_ctx = egui::Context::default();
     let mut event_pump = sdl_context.event_pump().unwrap();
-    
+
+
     // set screen buffer placeholder
     let mut screen_buffer = rusty.update_and_render();
 
