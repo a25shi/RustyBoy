@@ -1,5 +1,4 @@
 mod rusty_boy;
-
 use egui_sdl2_gl::{gl, DpiScaling, ShaderVersion};
 use std::time::{Duration, Instant};
 use egui::{vec2, Direction, FullOutput, Image};
@@ -11,11 +10,11 @@ use sdl2::surface::Surface;
 use sdl2::video::{GLProfile, SwapInterval};
 use crate::rusty_boy::RustyBoy;
 
+// Gameboy size constant
+const GB_WIDTH: usize = 160;
+const GB_HEIGHT: usize = 144;
 fn main() {
-    // Gameboy size constant
-    let gb_width = 160;
-    let gb_height = 144;
-
+    
     // init gameboy 
     let mut rusty = RustyBoy::new();
     
@@ -65,7 +64,7 @@ fn main() {
     let mut screen_buffer = rusty.update_and_render();
 
     // texture
-    let gb_texture = painter.new_user_texture_rgba8((gb_width, gb_height), screen_buffer, false);
+    let gb_texture = painter.new_user_texture_rgba8((GB_WIDTH, GB_HEIGHT), screen_buffer, false);
     let start_time = Instant::now();
 
     // counter 
@@ -144,7 +143,7 @@ fn main() {
                 ui.add(egui::Separator::default().spacing(5.0));
                 ui.with_layout(egui::Layout::centered_and_justified(Direction::LeftToRight), |ui| {
                     // Actual emulator screen
-                    ui.add(Image::new(SizedTexture::new(gb_texture, vec2((gb_width * 3) as f32, (gb_height * 3) as f32))))
+                    ui.add(Image::new(SizedTexture::new(gb_texture, vec2((GB_WIDTH * 3) as f32, (GB_HEIGHT * 3) as f32))))
                 });
             });
 

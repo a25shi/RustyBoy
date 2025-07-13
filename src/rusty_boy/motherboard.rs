@@ -3,6 +3,7 @@ use std::rc::Rc;
 use crate::rusty_boy::screen::Screen;
 use crate::rusty_boy::timer::Timer;
 use crate::rusty_boy::joypad::Joypad;
+use crate::rusty_boy::sound::Sound;
 
 // Note: Since motherboard doesn't have any mutable fields, always borrow as non mut to access fields
 pub struct Motherboard {
@@ -13,7 +14,8 @@ pub struct Motherboard {
     pub sync_cycles: Cell<u8>,
     pub timer: RefCell<Timer>,
     pub screen: RefCell<Screen>,
-    pub joypad: RefCell<Joypad>
+    pub joypad: RefCell<Joypad>,
+    pub audio: RefCell<Sound>,
 }
 
 impl Motherboard {
@@ -27,7 +29,8 @@ impl Motherboard {
             i_master: Cell::new(false),
             timer: RefCell::new(Timer::new()),
             screen: RefCell::new(Screen::new(x.clone())),
-            joypad: RefCell::new(Joypad::new())
+            joypad: RefCell::new(Joypad::new()),
+            audio: RefCell::new(Sound::new()),
         }})
     }
     
@@ -38,6 +41,9 @@ impl Motherboard {
             .set(self.i_flag.get() | flag);
     }
     pub fn sync(&self) {
+        // audio tick
+        self.audio.borrow_mut().tick(self.cycles.get());
+        
         // timer tick
         if self.timer.borrow_mut().tick(self.cycles.get()) {
             self.set_interrupt(2);

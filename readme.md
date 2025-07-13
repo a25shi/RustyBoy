@@ -39,15 +39,15 @@ The emulator currently supports GameBoy games that use:
 
 ### Blargg Tests
 
-| Test | RustyBoy |
-|--|--|
-| cgb sound | N/A* |
-|cpu instrs|👍 |
-|dmg sound |❌ |
-|instr timing |👍|
-|interrupt time |N/A*|
-|mem timing|👍|
-|mem timing 2|👍|
+| Test           | RustyBoy |
+|----------------|----------|
+| cgb sound      | N/A*     |
+| cpu instrs     | 👍       |
+| dmg sound      | 6/12     |
+| instr timing   | 👍       |
+| interrupt time | N/A*     |
+| mem timing     | 👍       |
+| mem timing 2   | 👍       |
 
 \* need GBC support, RustyBoy is DMG only.
 

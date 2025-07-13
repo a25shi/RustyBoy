@@ -141,10 +141,16 @@ impl Memory {
             0xff0f => {
                 self.motherboard.i_flag.get()
             }
-            // TODO: audio
-            0xff10..=0xff26 => 0xff,
-            // TODO: audio ram
-            0xff30..=0xff3f => 0xff,
+            // audio
+            0xff10..=0xff26 => {
+                self.motherboard.sync();
+                self.motherboard.audio.borrow().get(address)
+            },
+            // audio ram
+            0xff30..=0xff3f => {
+                self.motherboard.sync();
+                self.motherboard.audio.borrow().get(address)
+            },
             // screen
             0xff40..=0xff4b => {
                 self.motherboard.sync();
@@ -175,10 +181,16 @@ impl Memory {
             0xff0f => {
                 self.motherboard.i_flag.set(value);
             }
-            // TODO: audio
-            0xff10..=0xff26 => {},
-            // TODO: audio ram
-            0xff30..=0xff3f => {},
+            // audio
+            0xff10..=0xff26 => {
+                self.motherboard.sync();
+                self.motherboard.audio.borrow_mut().set(address, value);
+            },
+            // audio ram
+            0xff30..=0xff3f => {
+                self.motherboard.sync();
+                self.motherboard.audio.borrow_mut().set(address, value);
+            },
             // screen
             0xff40..=0xff4b => {
                 self.motherboard.sync();

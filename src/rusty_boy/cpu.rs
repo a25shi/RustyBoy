@@ -486,7 +486,6 @@ impl CPU {
             value = u16::from_be_bytes([a, b]);
             self.registers.pc += 2;
         }
-
         // Unprefixed instructions
         if !cb {
             match opcode {
@@ -1357,7 +1356,7 @@ impl CPU {
     fn execute_next_op(&mut self) -> u8 {
         let address: u16 = self.registers.pc;
         let (new_address, opcode, bytes, cycles, cb) = self.decode(address);
-        // !("address: {address:04x} with opcode {opcode:02x}");
+        // print!("address: {address:04x} with opcode {opcode:02x}");
         self.registers.pc = new_address;
         // println!("executing opcode {opcode:02x} cb: {cb}");
         self.execute_opcode(opcode, bytes, cycles, cb).unwrap()
@@ -1449,6 +1448,11 @@ impl CPU {
             cycles = 4;
         }
         
+        //println!("Ticking audio");
+        // tick audio
+        self.motherboard.audio.borrow_mut().tick(cycles - self.motherboard.sync_cycles.get());
+
+        //println!("Ticking timer");
         // tick timer
         let timer_int = self.motherboard.timer.borrow_mut().tick(cycles - self.motherboard.sync_cycles.get());
         if timer_int {
