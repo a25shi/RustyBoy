@@ -136,7 +136,7 @@ impl Sound {
                     }
                 }
             }
-            
+
             if (self.frame_counter % ((CPU_CLOCK / SAMPLE_RATE) as u32)) <= 1 {
                 let ch1_amp = self.ch1.get_amp();
                 let ch2_amp = self.ch2.get_amp();
@@ -191,19 +191,19 @@ impl Sound {
                         right += ch4_amp;
                     }
                 }
-                
+
                 left /= 4.0;
                 right /= 4.0;
                 self.buffer.push(left * left_vol);
                 self.buffer.push(right * right_vol);
             }
-            
+
             // If sound buffer is full, send it
             if self.buffer.len() >= BUFFER_SIZE {
                 self.play_sound(self.buffer.clone());
                 self.buffer.clear();
             }
-            
+
             c_cycles += 2;
         }
     }

@@ -213,7 +213,7 @@ impl Screen {
         }
     }
     fn draw_scanline(&mut self) {
-        if self.lcdc.window_enable && self.wy <= self.ly && self.wx - 7 < 160 {
+        if self.lcdc.window_enable && self.wy <= self.ly && (self.wx as i32 - 7) < 160 {
             self.wy_counter += 1
         }
         if self.lcdc.background_enable {
@@ -233,19 +233,21 @@ impl Screen {
     }
     fn draw_background_scanline(&mut self) {
         let wx = self.wx - 7;
+        let wx_comp = self.wx as i32 - 7;
         let mut x_pos: usize;
         let mut y_pos: usize;
         let mut offset: u16;
         let mut xmask: usize;
-        let mut xmaskeq: u8;
+        let mut xmaskeq: i32;
         let mut tile_index: usize = 0;
         for x in 0..160 {
-            if self.lcdc.window_enable && self.wy <= self.ly && x >= wx {
+            // within window
+            if self.lcdc.window_enable && self.wy <= self.ly && (x as i32) >= wx_comp {
                 x_pos = (x - wx) as usize;
                 y_pos = self.wy_counter as usize;
                 offset = self.lcdc.windowmap_offset;
                 xmask = x_pos % 8;
-                xmaskeq = wx;
+                xmaskeq = wx_comp;
             }
             else {
                 x_pos = (x + self.scx) as usize;
@@ -254,10 +256,10 @@ impl Screen {
                 xmask = ((x + (self.scx & 0b111)) % 8) as usize;
                 xmaskeq = 0;
             }
-
-            if xmask == 0 || x == xmaskeq {
+            
+            // if start of new tile or start of window tile or window tile begins offscreen, update tile index
+            if xmask == 0 || (x as i32) == xmaskeq || (xmaskeq < 0 && x == 0) {
                 tile_index = self.get_tile(x_pos, y_pos, offset);
-                //println!("{tile_index}");
                 self.tile_cache.update_tile(tile_index, &self.vram)
             }
             
@@ -266,13 +268,12 @@ impl Screen {
             let color = self.bgp.get_color(color_index);
             // This is without caching
             // tile_index = self.get_tile(x_pos, y_pos, offset);
-            // let color = self.get_tile_bgp(tile_index, x_pos as usize, y_pos as usize);
+            // let (color, color_index) = self.get_tile_bgp(tile_index, x_pos, y_pos);
             
             self.set_pixel_color(x, self.ly, color, Some(color_index));
         }
     }
-    
-    fn get_tile_bgp(&self, tile_index: usize, x: usize, y: usize) -> u8 {
+    fn get_tile_bgp(&self, tile_index: usize, x: usize, y: usize) -> (u8, u8) {
         let line = 2 * (y % 8);
         let pixel_index = 7 - (x % 8);
         
@@ -281,9 +282,8 @@ impl Screen {
 
         let mut col_index = ((byte2 >> pixel_index) & 1) << 1;
         col_index |= (byte1 >> pixel_index) & 1;
-        self.bgp.get_color(col_index)
+       (self.bgp.get_color(col_index), col_index)
     }
-    
     fn draw_sprite_scanline(&mut self) {
         let spriteheight = if self.lcdc.sprite_height { 16 } else { 8 };
         let mut spritecount = 0;
@@ -393,7 +393,7 @@ impl Screen {
     }
     fn get_tile(&self, x: usize, y: usize, offset: u16) -> usize {
         let tile_addr = offset as usize + (y / 8 * 32 % 0x400) + (x / 8 % 32) ;// tilemap offset + tileRow + tileCol
-        let mut tile_index = self.vram[tile_addr as usize] as usize;
+        let mut tile_index = self.vram[tile_addr] as usize;
         // if 8800 method
         if !self.lcdc.tiledata_select {
             tile_index += 0x100;
@@ -403,6 +403,7 @@ impl Screen {
         }
         tile_index
     }
+    
     // Checks lyc == ly and triggers interrupt if needed
     fn check_lyc(&mut self) {
         let interrupt = self.stat.update_lyc(self.lyc, self.ly);

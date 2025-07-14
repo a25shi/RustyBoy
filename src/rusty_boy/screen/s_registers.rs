@@ -1,3 +1,5 @@
+const TILE_COUNT: usize = 384;
+
 // Palette register
 pub struct Palette {
     value: u8,
@@ -131,15 +133,15 @@ impl STAT {
 
 // Tile cache for bg for now
 pub struct TileCache {
-    tile_state: [bool; 384], // checks which tiles are cached
-    pub tile_cache: [u8; 384 * 8 * 8] // tile cache
+    tile_state: [bool; TILE_COUNT], // checks which tiles are cached
+    pub tile_cache: [u8; TILE_COUNT * 8 * 8] // tile cache
 }
 
 impl TileCache {
     pub fn new() -> Self {
         Self {
-            tile_state: [false; 384],
-            tile_cache: [0; 384 * 8 * 8]
+            tile_state: [false; TILE_COUNT],
+            tile_cache: [0; TILE_COUNT * 8 * 8]
         }
     }
     pub fn update_tile(&mut self, tile_index: usize, vram: &[u8]) {
