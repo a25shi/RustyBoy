@@ -57,7 +57,6 @@ The emulator currently supports GameBoy games that use:
 
 ## Planned Features
 
-- Sound
 - Saving and loading
 - Game Boy Color support 
 
