@@ -2,8 +2,9 @@ use cartridge_header::CartridgeHeader;
 
 mod cartridge_header;
 mod mbc;
+mod rtc;
 
-use mbc::{MBCType, MBC0, MBC1};
+use mbc::{MBCType, MBC0, MBC1, MBC3};
 
 const RAM_SIZE: &[usize] = &[
     0,
@@ -43,11 +44,12 @@ impl Cartridge {
         let ram_banks = RAM_BANKS[header.ram_size as usize];
         let rom_banks = 2_u16.pow((header.rom_size + 1) as u32);
         let mbc = match &header.cartridge_type {
-            0 | 8 | 9 => MBCType::MBC0(MBC0{}),
-            1..=3 => MBCType::MBC1(MBC1::new(rom_banks, ram_banks)),
+            0x00 | 0x08 | 0x09 => MBCType::MBC0(MBC0{}),
+            0x01..=0x03 => MBCType::MBC1(MBC1::new(rom_banks, ram_banks)),
+            0x0f..=0x13 => MBCType::MBC3(MBC3::new(rom_banks, ram_banks)),
             _ => unimplemented!()
         };
-        // TODO: add mbc2 control and none found ram size
+        
         let ram_size = RAM_SIZE[header.ram_size as usize];
         
         let cartridge = Self {
@@ -64,12 +66,14 @@ impl Cartridge {
         match &self.mbc {
             MBCType::MBC0(x) => x.read(address, &self.rom, &self.ram),
             MBCType::MBC1(x) => x.read(address, &self.rom, &self.ram),
+            MBCType::MBC3(x) => x.read(address, &self.rom, &self.ram),
         }
     }
     pub fn write(&mut self, address: u16, value: u8) {
         match &mut self.mbc {
             MBCType::MBC0(x) => x.write(address, value, &self.rom, &mut self.ram),
             MBCType::MBC1(x) => x.write(address, value, &self.rom, &mut self.ram),
+            MBCType::MBC3(x) => x.write(address, value, &self.rom, &mut self.ram),
         }
     }
 }

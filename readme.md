@@ -23,6 +23,7 @@ Written in Rust, utilizing SDL2 for display rendering and egui for interface.
 The emulator currently supports GameBoy games that use:
 1. MBC0
 2. MBC1
+3. MBC3
 
 ### Keybinds
 | Joypad | Keyboard |
@@ -56,7 +57,6 @@ The emulator currently supports GameBoy games that use:
 
 
 ## Planned Features
-
 - Saving and loading
 - Game Boy Color support 
 

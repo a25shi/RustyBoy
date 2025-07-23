@@ -1,10 +1,12 @@
 use multi_compare::c;
+use crate::rusty_boy::cartridge::rtc::RTC;
 
 // enum for mbc types, mbc0 and mbc1 for now
 #[derive(PartialEq, Clone, Debug, Eq)]
 pub enum MBCType {
     MBC0(MBC0),
-    MBC1(MBC1)
+    MBC1(MBC1),
+    MBC3(MBC3)
 }
 
 // MBC0 memory controller
@@ -136,6 +138,108 @@ impl MBC1 {
             let offset = ram_bank as usize * 0x2000;
             let final_addr = (addr + offset) % ram.len();
             ram[final_addr] = value;
+        }
+    }
+}
+
+#[derive(PartialEq,Clone,Debug,Eq)]
+pub struct MBC3 {
+    rtc: RTC,
+    rom_bank: u8,
+    ram_bank: u8,
+    total_rom_banks: u16,
+    total_ram_banks: u16,
+    ram_enabled: bool,
+}
+
+impl MBC3 {
+    pub fn new(t_rom_banks: u16, t_ram_banks: u16) -> Self {
+        Self {
+            rtc: RTC::new(),
+            rom_bank: 1,
+            ram_bank: 0,
+            total_rom_banks: t_rom_banks,
+            total_ram_banks: t_ram_banks,
+            ram_enabled: false,
+        }
+    }
+    pub fn read(&self, address: u16, rom: &[u8], ram: &[u8]) -> u8 {
+        if address < 0x4000 {
+            rom[address as usize]
+        }
+            
+        else if c!(0x4000 <= address < 0x8000) {
+            let cur_rom_bank = self.rom_bank as usize % self.total_rom_banks as usize;
+            let offset = cur_rom_bank * 0x4000;
+            rom[offset + (address as usize - 0x4000)]
+        }
+        // ram bank - or - rtc register read
+        else if c!(0xa000 <= address < 0xc000) {
+            match self.ram_bank {
+                // Ram read
+                0x00..=0x07 => {
+                    if !self.ram_enabled || ram.is_empty() {
+                        return 0xff
+                    }
+                    let cur_ram_bank = self.ram_bank as usize % self.total_ram_banks as usize;
+                    let final_addr = (cur_ram_bank * 0x2000 + (address as usize - 0xa000)) % ram.len();
+                    ram[final_addr]
+                }
+                // rtc read
+                0x08..=0x0c => {
+                    self.rtc.read(self.ram_bank)
+                }
+                // unknown
+                _ => 0xff
+            }
+        }
+        else {
+            unreachable!()
+        }
+    }
+    pub fn write(&mut self, address: u16, value: u8, rom: &[u8], ram: &mut [u8]) {
+        // ram enable
+        if address < 0x2000 {
+            self.ram_enabled = value & 0xf == 0xa;
+        }
+        // rom bank
+        else if c!(0x2000 <= address < 0x4000) {
+            let mut temp = value & 0b01111111;
+            if temp == 0 {
+                temp = 1;
+            }
+            self.rom_bank = temp;
+        }
+
+        // ram bank - or - rtc register select
+        else if c!(0x4000 <= address < 0x6000) {
+            self.ram_bank = value;
+        }
+
+        // latch clock data
+        else if c!(0x6000 <= address < 0x8000) {
+            self.rtc.write_latch_clock(value);
+        }
+            
+        // ram bank - or - rtc register write
+        else if c!(0xa000 <= address <= 0xbfff) {
+            match self.ram_bank {
+                // Ram write
+                0x00..=0x07 => {
+                    if !self.ram_enabled || ram.is_empty() {
+                        return;
+                    }
+                    let cur_ram_bank = self.ram_bank as usize % self.total_ram_banks as usize;
+                    let final_addr = (cur_ram_bank * 0x2000 + (address as usize - 0xa000)) % ram.len();
+                    ram[final_addr] = value;
+                }
+                // rtc write
+                0x08..=0x0c => {
+                    self.rtc.write(self.ram_bank, value);
+                }
+                // unknown
+                _ => {}
+            }
         }
     }
 }
