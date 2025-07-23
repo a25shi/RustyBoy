@@ -1,9 +1,9 @@
 
 
 # RustyBoy
-A functioning **Game Boy** emulator.
+A functioning **Game Boy** emulator. Fairly accurate gameboy emulation with sound.
 
-Written in Rust, utilizing SDL2 for display rendering and egui for interface.
+Written in **Rust**, utilizing **SDL2** for display rendering, **egui** for interface, and **rodio** for sound streaming.
 
 
 ## Getting Started
@@ -54,6 +54,11 @@ The emulator currently supports GameBoy games that use:
 
 ### Dmg-acid2 👍
 ![image](https://github.com/user-attachments/assets/6669e4a2-b36b-4f9f-be84-066817ae03d5)
+
+## Screenshots
+
+<img width="500" height="500" alt="image" src="https://github.com/user-attachments/assets/e61f9462-7724-4378-86bf-f3241bd108dd" />
+<img width="500" height="500" alt="image" src="https://github.com/user-attachments/assets/301fb8e8-5fea-49ff-a86e-5e2d322f9af2" />
 
 
 ## Planned Features
